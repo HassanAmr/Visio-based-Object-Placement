@@ -1,0 +1,21 @@
+<launch>
+	<!-- Start camera -->
+	<include file="$(find openni_launch)/launch/openni.launch">
+		<arg name="depth_registration" default="true" />
+	</include>
+
+	<!-- otherwise we use iiwa -->
+	<include file="$(find kuka_manager)/launch/iiwa_manager.launch" />
+
+	<param name="robot_description" textfile="$(find iiwa_description)/urdf/iiwa.urdf" />
+	<node name="iiwa_robot_state_publisher" pkg="robot_state_publisher" type="state_publisher" />
+
+	<node pkg="rviz" type="rviz" name="rviz" args="-d $(find visiobased_object_placement)/rviz/iiwa_table.rviz" />
+	
+	<node name="camera_tf_broadcaster_table_camera_to_iiwa" pkg="lbr_camera_calibration" type="camera_tf_broadcaster" output="screen">
+		<param name="from_link" value="/camera_link" />
+		<param name="to_link" value="/iiwa_base_link" />
+		<!--The following line is only needed if you have a calibration file in custom location -->
+		<param name="calibration_file" value="$(find iiwa_calibration)/calibration_files/table_camera_to_iiwa.mat" />
+	</node>
+</launch>

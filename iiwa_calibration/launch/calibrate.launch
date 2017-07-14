@@ -2,6 +2,7 @@
 	<!-- Please provide the rough position of the camera, which is needed to specify the calibration movement -->
 	<arg name="robot" default="IIWA" />
 	<arg name="iterations" default="100" />
+	<arg name="camera_name" default="kinect2" />
 	<arg name="threshold" default="1e-15" />
 	<arg name="marker_size" default="0.1255" />
 	<arg name="camera_path" default="$(find iiwa_calibration)/config/calibration_path_iiwa.txt" />
@@ -9,10 +10,8 @@
 	<arg name="cal_save_path" default="$(find iiwa_calibration)/calibration_files/table_camera_to_iiwa.mat" />
 
 	<!-- Start camera -->
-	<include file="$(find openni_launch)/launch/openni.launch">
-		<arg name="depth_registration" default="true" />
-		<!-- arg name="rgb_camera_info_url" value="package://neurobots_calibration/calibration_files/rgb_table_camera.yaml" / -->
-		<!-- arg name="depth_camera_info_url" value="package://neurobots_calibration/calibration_files/depth_table_camera.yaml" / -->
+	<include file="$(find kinect2_bridge)/launch/kinect2_bridge.launch">
+		<arg name="publish_tf" default="true" />
 	</include>
 
 	<!-- otherwise we use iiwa -->
@@ -22,6 +21,7 @@
 	<node name="iiwa_robot_state_publisher" pkg="robot_state_publisher" type="state_publisher" />
 
 	<node name="lbr_camera_calibration" pkg="lbr_camera_calibration" type="lbr_camera_calibration" output="screen" args="
+			--camera $(arg camera_name)			
 			--robot $(arg robot)
 			-i $(arg iterations)
 			--th $(arg threshold)

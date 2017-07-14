@@ -1,7 +1,7 @@
 <launch>
 	<!-- Start camera -->
-	<include file="$(find openni_launch)/launch/openni.launch">
-		<arg name="depth_registration" default="true" />
+	<include file="$(find kinect2_bridge)/launch/kinect2_bridge.launch">
+		<arg name="publish_tf" default="true" />
 	</include>
 
 	<!-- otherwise we use iiwa -->
@@ -13,7 +13,7 @@
 	<node pkg="rviz" type="rviz" name="rviz" args="-d $(find visiobased_object_placement)/rviz/iiwa_table_TF.rviz" />
 	
 	<node name="camera_tf_broadcaster_table_camera_to_iiwa" pkg="lbr_camera_calibration" type="camera_tf_broadcaster" output="screen">
-		<param name="from_link" value="/camera_link" />
+		<param name="from_link" value="/kinect2_link" />
 		<param name="to_link" value="/iiwa_base_link" />
 		<!--The following line is only needed if you have a calibration file in custom location -->
 		<param name="calibration_file" value="$(find iiwa_calibration)/calibration_files/table_camera_to_iiwa.mat" />

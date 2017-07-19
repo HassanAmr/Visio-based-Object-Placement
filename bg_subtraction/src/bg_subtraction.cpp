@@ -1,4 +1,7 @@
 #include <ros/ros.h>
+#include <message_filters/subscriber.h>
+#include <message_filters/sync_policies/approximate_time.h>
+#include <message_filters/synchronizer.h>
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 #include <tf_conversions/tf_eigen.h>
@@ -12,6 +15,7 @@
 #include <sstream>
 #include <vector>
 #include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/Image.h>
 #include <boost/foreach.hpp>
 #include <image_transport/image_transport.h>
 #include <opencv2/highgui/highgui.hpp>
@@ -19,6 +23,8 @@
 //#include <signal.h>
 
 typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloud;
+typedef message_filters::sync_policies::ApproximateTime<PointCloud, sensor_msgs::Image> SyncPolicy;
+
 tf::TransformListener * listener;
 tf::TransformBroadcaster * br;
 ros::Publisher pub;
@@ -28,7 +34,7 @@ int fileCounter = 0;
 //const std::string fileExt = ".pcd";
 const std::string fileExt = ".jpg";
 
-void callback(const PointCloud::ConstPtr& msg)
+void callback(const PointCloud::ConstPtr& msg, const sensor_msgs::Image::ConstPtr& imageRgb)
 {
   
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -40,7 +46,7 @@ void callback(const PointCloud::ConstPtr& msg)
 
   tf::StampedTransform transform;
   try{
-    listener->lookupTransform("/camera_depth_optical_frame", "/iiwa_flange_link", ros::Time(0), transform);
+    listener->lookupTransform("/kinect2_ir_optical_frame", "/iiwa_flange_link", ros::Time(0), transform);
     
     Eigen::Affine3d tranMat;
     tf::transformTFToEigen (transform, tranMat);
@@ -48,7 +54,7 @@ void callback(const PointCloud::ConstPtr& msg)
     Eigen::Vector3d zDirection = rotMat.col(2);
 
     //std::cout<< zDirection.transpose()<< std::endl;
-    br->sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/camera_depth_optical_frame", "iiwa_end_effector_link"));
+    br->sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/kinect2_ir_optical_frame", "iiwa_end_effector_link"));
     printf ("Cloud: width = %d, height = %d\n", msg->width, msg->height);
 
     int i = 0;
@@ -57,7 +63,7 @@ void callback(const PointCloud::ConstPtr& msg)
     {
       //printf ("\t(%f, %f, %f)\n", pt.x, pt.y, pt.z);
       Eigen::Vector3d newVec(pt.x - transform.getOrigin().x(), pt.y - transform.getOrigin().y(), pt.z - transform.getOrigin().z());
-      if (newVec.dot(zDirection) > 0)
+      if (newVec.dot(zDirection) > -0.01)
       {
         cloud->points[i].x = pt.x;
         cloud->points[i].y = pt.y;
@@ -99,22 +105,55 @@ void callback(const PointCloud::ConstPtr& msg)
     pub.publish(*cloud_projected);
 
     //cv_bridge::CvImagePtr
-    cv::Mat image(480, 640, CV_8UC3, cv::Scalar(0, 0, 0));
+    cv::Mat image(1080, 1920, CV_8UC3, cv::Scalar(0, 0, 0));
+    cv::Mat image_rgb(1080, 1920, CV_8UC3, cv::Scalar(0, 0, 0));
 
-    cv::Vec3b intensity;
+
+    cv::Vec3b intensity, rgb_intensity;
     //std::cout<<cloud_projected->width<<std::endl;
     //std::cout<<cloud_projected->height<<std::endl;
     i = 0;
-    for(int v = 0; v < 480; ++v)
+    int j = 0;
+    //the following are used to hold the indexes of the first and last occurance of rgb within our pointcloud
+    //so that the subsequent inner loop can get fill only the needed rgb values in our rgb image.
+    int start_rgb, end_rgb;
+    for(int v = 0; v < 1080; ++v)
     {
-      for(int u = 0; u < 640; ++u)
+      for(int u = 0; u < 1920; ++u)
       {
         intensity.val[0] = cloud_projected->points[i].b;
         intensity.val[1] = cloud_projected->points[i].g;
-        intensity.val[2] = cloud_projected->points[i].r;
+        intensity.val[2] = cloud_projected->points[i++].r;
         image.at<cv::Vec3b>(cv::Point(u,v)) = intensity;
-        i++;
+
+        if(start_rgb == 0)
+        {
+			if(intensity != cv::Vec3b(0,0,0))
+			{
+				start_rgb = u;
+			}
+        }
+        else
+        {
+			if(intensity != cv::Vec3b(0,0,0))
+			{
+				end_rgb = u;
+			}
+        }
       }
+      for (int u = 0; u < 1920; ++u)
+      {
+    	  if (u >= start_rgb && u < end_rgb)
+    	  {
+    		  rgb_intensity.val[0] = imageRgb->data[3*j];
+    		  rgb_intensity.val[1] = imageRgb->data[3*j + 1];
+    		  rgb_intensity.val[2] = imageRgb->data[3*j + 2];
+    		  image_rgb.at<cv::Vec3b>(cv::Point(u,v)) = rgb_intensity;
+    	  }
+    	  j++;
+      }
+      start_rgb = 0;
+      end_rgb = 0;
     }
 
     cv_bridge::CvImage imageMsg;
@@ -137,6 +176,13 @@ void callback(const PointCloud::ConstPtr& msg)
 
     cv::imwrite(oss.str(), image);
 
+    std::ostringstream oss_rgb;
+    oss_rgb << fileCounter << "_rgb" << fileExt;
+    std::cout << oss_rgb.str()<< " created." << std::endl;
+
+    cv::imwrite(oss_rgb.str(), image_rgb);
+
+
     //pcl::io::savePCDFileASCII (oss.str(), *cloud);
     fileCounter++;
     //ros::shutdown();
@@ -158,13 +204,19 @@ void mySigintHandler(int sig)
 }*/
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "bg_subtraction");
-  ros::NodeHandle nh, ng, n;
-  listener = new tf::TransformListener;
-  br = new tf::TransformBroadcaster;
-  ros::Subscriber sub = nh.subscribe<PointCloud>("/camera/depth_registered/points", 1, callback);
-  pub = n.advertise<PointCloud>("/bg_subtracted", 1);
-  image_transport::ImageTransport it(ng);
-  imagePub = it.advertise("/bg_subtracted_image", 1);
-   ros::spin();
+	ros::init(argc, argv, "bg_subtraction");
+	ros::NodeHandle nh, ng, n;
+	listener = new tf::TransformListener;
+	br = new tf::TransformBroadcaster;
+	//ros::Subscriber sub = nh.subscribe<PointCloud>("/kinect2/hd/points", 1, callback);
+
+	message_filters::Subscriber<PointCloud> registeredSub(nh, "/kinect2/hd/points", 1);
+	message_filters::Subscriber<sensor_msgs::Image> rgbSub(nh, "/kinect2/hd/image_color", 1);
+	message_filters::Synchronizer<SyncPolicy> sync(SyncPolicy(10), registeredSub, rgbSub);
+	sync.registerCallback(boost::bind(&callback, _1, _2));
+
+	pub = n.advertise<PointCloud>("/bg_subtracted", 1);
+	image_transport::ImageTransport it(ng);
+	imagePub = it.advertise("/bg_subtracted_image", 1);
+	ros::spin();
 }

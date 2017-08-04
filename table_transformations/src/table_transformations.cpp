@@ -12,7 +12,7 @@
 //using namespace cv;
 
 cv::Mat src; cv::Mat dst;
-int markerBoxSize = 16;
+int markerBoxSize = 30;
 
 cv::String SplitFilename (const std::string& str)
 {
@@ -124,22 +124,28 @@ int main( int argc, char** argv )
         int y = 0;
 
 
-		std::vector<cv::Point2f> marker;
-		std::vector<cv::Point3f> patternPoints3d;
+        std::vector<cv::Point2f> marker;
+        std::vector<cv::Point3f> patternPoints3d;
 
+        int imageCenterX = im.cols/2;
+        int imageCenterY = im.rows/2;
+        //int c = 0;
         for (int  h = 0; h < patternsize.height; ++h)
         {
             for (int w = 0; w < patternsize.width; ++w)
             {
                 cv::Point2f p2(w*markerBoxSize,h*markerBoxSize);
                 marker.push_back(p2);
-                cv::Point3f p3(w*markerBoxSize,h*markerBoxSize, 0);
+                //cv::Point3f p3((corners[c].x - imageCenterX), (corners[c].y - imageCenterY), 0);
+                cv::Point3f p3(w, h, 0);
                 patternPoints3d.push_back(p3);
+                //c++;
             }
         }
-
+        //std::cout<< c << std::endl;
+        //std::cout<< patternPoints3d<< std::endl;
         cv::Mat dst;
-        resize(im, dst, cv::Size(640, 512), 0, 0, cv::INTER_AREA); // resize to 640x512 resolution
+        resize(im, dst, im.size(), 0, 0, cv::INTER_AREA); // resize to 640x512 resolution
 
         //std::cout<<patternsize<<std::endl;
 
@@ -177,63 +183,76 @@ int main( int argc, char** argv )
         perspectiveTransform( obj_corners, scene_corners, H);
 
 
-		//std::vector<cv::Point3f> patternPoints3d;
-		//for (int  h = 0; h < patternsize.height; ++h)
-		//{
-		//	for (int w = 0; w < patternsize.width; ++w)
-		//	{
-		//		cv::Point3f p3(w*markerBoxSize,h*markerBoxSize, 0);
-		//		patternPoints3d.push_back(p3);
+        //std::vector<cv::Point3f> patternPoints3d;
+        //for (int  h = 0; h < patternsize.height; ++h)
+        //{
+        //  for (int w = 0; w < patternsize.width; ++w)
+        //  {
+        //      cv::Point3f p3(w*markerBoxSize,h*markerBoxSize, 0);
+        //      patternPoints3d.push_back(p3);
 
-		//	}
-		//}
+        //  }
+        //}
 
         std::vector<std::vector<cv::Point3f> > objectPoints;
-		objectPoints.push_back(patternPoints3d);
-		std::vector<std::vector<cv::Point2f> > imagePoints;
-		imagePoints.push_back(corners);
-		std::vector<cv::Point3f> axis;
-		axis.push_back(cv::Point3f(3*markerBoxSize, 0, 0));
-		axis.push_back(cv::Point3f(0, 3*markerBoxSize, 0));
-		axis.push_back(cv::Point3f(0, 0, 3*markerBoxSize ));
+        std::vector<std::vector<cv::Point2f> > imagePoints;
+        std::vector<cv::Point3f> axis;
+        axis.push_back(cv::Point3f(3, 0, 0));
+        axis.push_back(cv::Point3f(0, 3, 0));
+        axis.push_back(cv::Point3f(0, 0, -3));
 
 
-		cv::Mat cameraMatrix, distMatrix;
-		std::vector<cv::Mat> _rvecs, _tvecs;
-		cv::Mat rvecs = (cv::Mat_<double>(3, 1) << 0.08257, -0.6168, 1.4675);
-		cv::Mat tvecs = (cv::Mat_<double>(3, 1) << -0.3806, -0.1605, 0.6087);
+        //cv::Mat cameraMatrix, distMatrix;
+        std::vector<cv::Mat> _rvecs, _tvecs;
+        cv::Mat rvecs = (cv::Mat_<double>(3, 1) << 0.08257, -0.6168, 1.4675);
+        cv::Mat tvecs = (cv::Mat_<double>(3, 1) << -0.3806, -0.1605, 0.6087);
 
-		calibrateCamera(objectPoints, imagePoints, cv::Size(im.size().width, im.size().height), cameraMatrix, distMatrix, _rvecs, _tvecs);
+        cv::Mat CamMatrix = cv::Mat::eye(3, 3, CV_32F);
+        CamMatrix.at< float >(0, 0) = 500;
+        CamMatrix.at< float >(1, 1) = 500;
+        CamMatrix.at< float >(0, 2) = imageCenterX;
+        CamMatrix.at< float >(1, 2) = imageCenterY;
+        cv::Mat distMatrix= cv::Mat::zeros(1, 5, CV_32F);
 
-		solvePnPRansac(patternPoints3d, corners, cameraMatrix, distMatrix, rvecs, tvecs);
+        //solvePnPRansac(patternPoints3d, corners, CamMatrix, distMatrix, rvecs, tvecs);
 
-		std::vector<cv::Point2f>  projectedPoints;
+        //_rvecs.push_back(rvecs);
+        //_tvecs.push_back(tvecs);
+        objectPoints.push_back(patternPoints3d);
+        imagePoints.push_back(corners);
 
-		projectPoints(axis, rvecs, tvecs, cameraMatrix, distMatrix, projectedPoints);
+        calibrateCamera(objectPoints, imagePoints, im.size(), CamMatrix, distMatrix, _rvecs, _tvecs);
+
+        solvePnPRansac(patternPoints3d, corners, CamMatrix, distMatrix, rvecs, tvecs);
+        //std::cout<<rvecs<<std::endl;
+
+        std::vector<cv::Point2f>  projectedPoints;
+
+        projectPoints(axis, rvecs, tvecs, CamMatrix, distMatrix, projectedPoints);
 
         //-- Draw lines between the corners (the mapped object in the scene - image_2 )
         line( dst,
-        		scene_corners[0], scene_corners[1],
+                scene_corners[0], scene_corners[1],
             cv::Scalar( 0, 255, 0), 2, cv::LINE_AA );
         line( dst,
-        		scene_corners[1], scene_corners[2],
+                scene_corners[1], scene_corners[2],
             cv::Scalar( 0, 255, 0), 2, cv::LINE_AA );
         line( dst,
-        		scene_corners[2], scene_corners[3],
+                scene_corners[2], scene_corners[3],
             cv::Scalar( 0, 255, 0), 2, cv::LINE_AA );
         line( dst,
-        		scene_corners[3], scene_corners[0],
+                scene_corners[3], scene_corners[0],
             cv::Scalar( 0, 255, 0), 2, cv::LINE_AA );
 
 
         line( dst,
-        		scene_corners[0], projectedPoints[0],
+                scene_corners[0], projectedPoints[0],
             cv::Scalar( 255, 0, 0), 2, cv::LINE_AA );
         line( dst,
-        		scene_corners[0], projectedPoints[1],
+                scene_corners[0], projectedPoints[1],
             cv::Scalar( 255, 0, 255), 2, cv::LINE_AA );
         line( dst,
-        		scene_corners[0], projectedPoints[2],
+                scene_corners[0], projectedPoints[2],
             cv::Scalar( 0, 0, 255), 2, cv::LINE_AA );
 
         imwrite(outputName2 , dst);
@@ -241,8 +260,6 @@ int main( int argc, char** argv )
 
         //Camera parameters and matrices should be cleared since every picture should not be related to the rest of the pictures
         hMatrices << RemoveFileExtension(fileNameStr).c_str() << H;
-        corners.clear();
-        marker.clear();
         obj_corners.clear();
         scene_corners.clear();
         H.release();

@@ -1,4 +1,7 @@
-//#include <ros/ros.h>
+#include <ros/ros.h>
+#include <image_transport/image_transport.h>
+#include <cv_bridge/cv_bridge.h>
+
 //#include <image_transport/image_transport.h>
 //#include <opencv2/highgui/highgui.hpp>
 //#include <cv_bridge/cv_bridge.h>
@@ -461,23 +464,15 @@ cv::Mat findGoodMatches(
 ////////////////////////////////////////////////////
 // This program demonstrates the usage of SURF_OCL.
 // use cpu findHomography interface to calculate the transformation matrix
-int Run(cv::String queryName, cv::String db_location, cv::String dataset_location)
+int Run(cv::UMat queryImg, cv::String db_location, cv::String dataset_location)
 {
 	const cv::String dataset_type = ".jpg"; //TODO: maybe set it as argument later
-    cv::UMat img1, queryImg,backImg;
+    cv::UMat img1;
     //std::cout << "Test = " <<testName<< std::endl;
 
     //imread(backName, CV_LOAD_IMAGE_GRAYSCALE).copyTo(backImg);
 
     //imread(queryName, CV_LOAD_IMAGE_GRAYSCALE).copyTo(queryImg);
-    resize(imread(queryName, CV_LOAD_IMAGE_GRAYSCALE), queryImg, cv::Size(640, 512), 0, 0, cv::INTER_AREA);
-    if(queryImg.empty())
-    {
-        std::cout << "Couldn't load " << queryName << std::endl;
-        //cmd.printMessage();
-        printf("Wrong input arguments.\n\nPlease enter:\n\t1. The location of the background image\n\t2. The location of the query image\n\t2. The path of the db\n\t3. The location of the image files\n\n");
-        return EXIT_FAILURE;
-    }
 
         //crop scrImg into img1
     // Setup a rectangle to define your region of interest
@@ -732,7 +727,41 @@ int main(int argc, char **argv)
 	  return 1;
 	}
 
-	return Run(queryName, db_location, dataset_location);
+	if (queryName == "--sub")
+	{
+		ros::init(argc, argv, "object_transormations");
+
+		sensor_msgs::ImageConstPtr msg = ros::topic::waitForMessage<sensor_msgs::Image>("/input_image");
+
+		try
+		{
+			cv::Mat subImg = cv_bridge::toCvShare(msg, "bgr8")->image;
+			cv::UMat queryImg;
+			subImg.copyTo(queryImg);
+			return Run(queryImg, db_location, dataset_location);
+
+		}
+		catch (cv_bridge::Exception& e)
+		{
+			ROS_ERROR("Could not convert from '%s' to 'bgr8'.", msg->encoding.c_str());
+		}
+	}
+	else
+	{
+		cv::UMat queryImg;
+		resize(imread(queryName, CV_LOAD_IMAGE_GRAYSCALE), queryImg, cv::Size(640, 512), 0, 0, cv::INTER_AREA);
+		if(queryImg.empty())
+		{
+			std::cout << "Couldn't load " << queryName << std::endl;
+			//cmd.printMessage();
+			printf("Wrong input arguments.\n\nPlease enter:\n\t1. The location of the background image\n\t2. The location of the query image\n\t2. The path of the db\n\t3. The location of the image files\n\n");
+			return EXIT_FAILURE;
+		}
+		return Run(queryImg, db_location, dataset_location);
+
+	}
+
+
 
 	/*
 	ros::init(argc, argv, "image_listener");

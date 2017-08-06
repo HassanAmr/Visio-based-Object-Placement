@@ -1,7 +1,7 @@
-//#include <ros/ros.h>
-//#include <image_transport/image_transport.h>
+#include <ros/ros.h>
+#include <image_transport/image_transport.h>
 //#include <opencv2/highgui/highgui.hpp>
-//#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.h>
 
 #include <iostream>
 #include <stdio.h>
@@ -11,7 +11,7 @@
 
 //using namespace cv;
 
-cv::Mat src; cv::Mat dst;
+image_transport::Subscriber sub;
 int markerBoxSize = 30;
 
 cv::String SplitFilename (const std::string& str)
@@ -26,58 +26,21 @@ cv::String RemoveFileExtension (const std::string& str)
   return str.substr(0, lastindex);
 }
 
-int main( int argc, char** argv )
+int Run(cv::String folderpath, cv::String outputPath, bool folderSource, cv::Mat subImage)
 {
-    cv::String folderpath, outputPath;
-
-    if (argc > 2)
+    std::vector<cv::String> filenames;
+    int mainLoopCount;
+    if (folderSource)
     {
-      folderpath = argv[1];
-      outputPath = argv[2];
-      /*
-      if (folderpath[folderpath.size()-1] == '/')
-      {
-        searchPath = folderpath.substr(0, folderpath.size()-1);
-      }
-      sampleName = SplitFilename(searchPath);
-      std::cout<<searchPath<<std::endl;
-      std::cout<<sampleName<<std::endl;
-      */
-      if (argc > 3)
-      {
-        printf("Too many arguments. Please enter the path of the files you wish to sample, then followed by the location in which you want to have the new samples.\n\n");
-        return 1;
-      }
+    	glob(folderpath, filenames);
 
+    	std::cout <<filenames.size()<< std::endl;
+    	mainLoopCount  = filenames.size();
     }
     else
     {
-      printf("Too few arguments. Please enter the path of the files you wish to sample, then followed by the location in which you want to have the new samples.\n\n");
-      return 1;
+    	mainLoopCount = 1;
     }
-    //String folderpath = "/Users/Hassan/Workspace/OpenCV/Dataset_BIG/copy_from_here/canon_ack_e10_box";
-    //String outputPath = "/Users/Hassan/Workspace/OpenCV/Dataset/BigBIRD/";
-    //String sampleName = "cam";
-    std::vector<cv::String> filenames;
-    glob(folderpath, filenames);
-
-    std::cout <<filenames.size()<< std::endl;
-    //int count = 1;
-    //int j = 0;
-
-
-    /*
-    int iam = 0, np = 1;
-
-    #pragma omp parallel default(shared) private(iam, np)
-    {
-      #if defined (_OPENMP)
-        np = omp_get_num_threads();
-        iam = omp_get_thread_num();
-      #endif
-      printf("Hello from thread %d out of %d\n", iam, np);
-    }
-    */
 
     bool patternfound = false;
     int l,k;
@@ -89,18 +52,29 @@ int main( int argc, char** argv )
     cv::FileStorage hMatrices(hMatrices_path, cv::FileStorage::WRITE);
     //#pragma omp parallel for private(patternfound, corners)
     cv::Size patternsize;//this is just a dummy declaration because it is only declared inside a loop, and the compiler doesn't like it
-    for (size_t i=0; i<filenames.size(); i++)
+
+    for (size_t i=0; i< mainLoopCount; i++)
     {
-        if (SplitFilename(filenames[i])[0] == '.')
-        {
-          continue;
-        }
+    	cv::Mat im;
+    	cv::String fileNameStr;
+    	if (folderSource)
+    	{
+    		if (SplitFilename(filenames[i])[0] == '.')
+    		{
+    			continue;
+    		}
 
 
-        cv::Mat im = imread(filenames[i]);
+    		im = imread(filenames[i]);
+            fileNameStr = SplitFilename(filenames[i]);
+    	}
+    	else
+    	{
+    		subImage.copyTo(im);
 
+    		fileNameStr = "output_image.jpg";
+    	}
         std::vector<cv::Point2f> corners; //this will be filled by the detected corners
-
 
         l = 7;
         while (!patternfound && l > 2)
@@ -122,7 +96,6 @@ int main( int argc, char** argv )
         }
         int x = 0;
         int y = 0;
-
 
         std::vector<cv::Point2f> marker;
         std::vector<cv::Point3f> patternPoints3d;
@@ -149,7 +122,6 @@ int main( int argc, char** argv )
 
         //std::cout<<patternsize<<std::endl;
 
-        cv::String fileNameStr = SplitFilename(filenames[i]);
         std::ostringstream ss;
         ss <<outputPath << "images/"<< fileNameStr;
         cv::String outputName = ss.str();
@@ -266,5 +238,74 @@ int main( int argc, char** argv )
         //break;
     }
     hMatrices.release();
-    return 0;
+    return EXIT_SUCCESS;
 }
+
+/*void imageCallback(const sensor_msgs::ImageConstPtr& msg)
+{
+	std::cout <<"here2" <<std::endl;
+	try
+	{
+		subImage = cv_bridge::toCvShare(msg, "bgr8")->image;
+		sub.shutdown();
+	}
+	catch (cv_bridge::Exception& e)
+	{
+		ROS_ERROR("Could not convert from '%s' to 'bgr8'.", msg->encoding.c_str());
+	}
+}*/
+int main( int argc, char** argv )
+{
+	cv::String folderpath, outputPath;
+
+	if (argc > 2)
+	{
+		folderpath = argv[1];
+		outputPath = argv[2];
+
+		if (argc > 3)
+		{
+			printf("Too many arguments. Please enter the path of the files you wish to sample, then followed by the location in which you want to have the new samples.\n\n");
+			return 1;
+		}
+
+	}
+	else
+	{
+		printf("Too few arguments. Please enter the path of the files you wish to sample, then followed by the location in which you want to have the new samples.\n\n");
+		return 1;
+	}
+	bool folderSource = true;
+	if (folderpath == "--sub")
+	{
+		folderSource = false;
+		ros::init(argc, argv, "table_transormations");
+		//ros::NodeHandle nh;
+		//image_transport::ImageTransport it(nh);
+		//sub = it.subscribe("/input_image", 1, imageCallback);
+    	//std::cout <<"here1" <<std::endl;
+    	//ros::spin();
+		//ros::spinOnce();
+		sensor_msgs::ImageConstPtr msg = ros::topic::waitForMessage<sensor_msgs::Image>("/input_image");
+
+		try
+		{
+			cv::Mat subImage = cv_bridge::toCvShare(msg, "bgr8")->image;
+			return Run(folderpath, outputPath, folderSource, subImage);
+
+
+		}
+		catch (cv_bridge::Exception& e)
+		{
+			ROS_ERROR("Could not convert from '%s' to 'bgr8'.", msg->encoding.c_str());
+		}
+	}
+	else
+	{
+		cv::Mat subImage;
+		return Run(folderpath, outputPath, folderSource, subImage);
+
+	}
+
+}
+

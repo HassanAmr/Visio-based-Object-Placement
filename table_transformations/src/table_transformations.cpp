@@ -1,10 +1,14 @@
 #include <ros/ros.h>
 #include <image_transport/image_transport.h>
+#include <tf/transform_listener.h>
+#include <tf/transform_broadcaster.h>
+#include <tf_conversions/tf_eigen.h>
 //#include <opencv2/highgui/highgui.hpp>
 #include <cv_bridge/cv_bridge.h>
 
 #include <iostream>
 #include <stdio.h>
+#include "opencv2/core/eigen.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/calib3d/calib3d.hpp"
@@ -46,10 +50,10 @@ int Run(cv::String folderpath, cv::String outputPath, bool folderSource, cv::Mat
     int l,k;
     //#pragma omp parallel default(shared) private(l, k)
 
-    cv::String hMatrices_path = outputPath + "matrices/H_Matrices.xml";
-    std::cout << hMatrices_path << std::endl;
+    cv::String rMatrices_path = outputPath + "matrices/R_Matrices.xml";
+    std::cout << rMatrices_path << std::endl;
 
-    cv::FileStorage hMatrices(hMatrices_path, cv::FileStorage::WRITE);
+    cv::FileStorage rMatrices(rMatrices_path, cv::FileStorage::WRITE);
     //#pragma omp parallel for private(patternfound, corners)
     cv::Size patternsize;//this is just a dummy declaration because it is only declared inside a loop, and the compiler doesn't like it
 
@@ -229,15 +233,41 @@ int Run(cv::String folderpath, cv::String outputPath, bool folderSource, cv::Mat
 
         imwrite(outputName2 , dst);
 
+        std::vector<cv::Mat> oRvecs, oTvecs, oNvecs;
+
+        decomposeHomographyMat(H, CamMatrix, oRvecs, oTvecs, oNvecs);
+        tf::TransformBroadcaster * br;
+        br = new tf::TransformBroadcaster[oRvecs.size()];
+        for (int  j = 0; j < oRvecs.size(); ++j)
+        {
+        	std::cout<<j + 1<<std::endl;
+        	std::cout<<oRvecs[j]<<std::endl<<std::endl;
+        	if (!folderSource)
+        	{
+        		//the following lines are not guaranteed to be correct yet. Maybe an actual conversion is needed here.
+        		Eigen::Matrix3f m;
+        		cv2eigen(oRvecs[j], m);
+        		Eigen::Quaternionf q(m);
+        		cv::String tfStr = "rvec_frame" +std::to_string(j+1);
+        		tf::StampedTransform transform;
+        		tf::Quaternion t;
+        		tf::quaternionEigenToTF(Eigen::Quaterniond(q), t);
+        		//tf::()
+        		transform.setRotation(t);
+        		br[j].sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/kinect2_ir_optical_frame", tfStr));
+        	}
+        }
+
+
 
         //Camera parameters and matrices should be cleared since every picture should not be related to the rest of the pictures
-        hMatrices << RemoveFileExtension(fileNameStr).c_str() << H;
+        rMatrices << RemoveFileExtension(fileNameStr).c_str() << H;
         obj_corners.clear();
         scene_corners.clear();
         H.release();
         //break;
     }
-    hMatrices.release();
+    rMatrices.release();
     return EXIT_SUCCESS;
 }
 
@@ -256,6 +286,7 @@ int Run(cv::String folderpath, cv::String outputPath, bool folderSource, cv::Mat
 }*/
 int main( int argc, char** argv )
 {
+	ros::init(argc, argv, "table_transormations");
 	cv::String folderpath, outputPath;
 
 	if (argc > 2)
@@ -279,13 +310,6 @@ int main( int argc, char** argv )
 	if (folderpath == "--sub")
 	{
 		folderSource = false;
-		ros::init(argc, argv, "table_transormations");
-		//ros::NodeHandle nh;
-		//image_transport::ImageTransport it(nh);
-		//sub = it.subscribe("/input_image", 1, imageCallback);
-    	//std::cout <<"here1" <<std::endl;
-    	//ros::spin();
-		//ros::spinOnce();
 		sensor_msgs::ImageConstPtr msg = ros::topic::waitForMessage<sensor_msgs::Image>("/input_image");
 
 		try

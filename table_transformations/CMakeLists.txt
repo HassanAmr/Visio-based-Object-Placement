@@ -199,6 +199,7 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 add_executable(table_transformations src/table_transformations.cpp)
 target_link_libraries(table_transformations ${catkin_LIBRARIES})
 add_dependencies(table_transformations table_transformations_cpp)

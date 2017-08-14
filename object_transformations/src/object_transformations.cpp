@@ -1,10 +1,9 @@
 #include <ros/ros.h>
 #include <image_transport/image_transport.h>
+#include <tf/transform_listener.h>
+#include <tf/transform_broadcaster.h>
+#include <tf_conversions/tf_eigen.h>
 #include <cv_bridge/cv_bridge.h>
-
-//#include <image_transport/image_transport.h>
-//#include <opencv2/highgui/highgui.hpp>
-//#include <cv_bridge/cv_bridge.h>
 
 #include <iostream>
 #include <stdio.h>
@@ -12,14 +11,19 @@
 #include "opencv2/core/utility.hpp"
 #include "opencv2/core/ocl.hpp"
 #include "opencv2/imgcodecs.hpp"
-#include "opencv2/imgproc.hpp"
-#include "opencv2/highgui.hpp"
+//#include "opencv2/imgproc.hpp"
+//#include "opencv2/highgui.hpp"
 #include "opencv2/features2d.hpp"
 #include "opencv2/calib3d.hpp"
 #include "opencv2/imgproc.hpp"
 #include "opencv2/xfeatures2d.hpp"
 #include "opencv2/videoio.hpp"
 #include <opencv2/video.hpp>
+#include "opencv2/core/eigen.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/calib3d/calib3d.hpp"
+
 
 int outputCounter = 1;
 const float ratio_Lowe = 0.8f; // As in Lowe's paper; can be tuned
@@ -667,6 +671,47 @@ int Run(cv::UMat queryImg, cv::String db_location, cv::String dataset_location)
 
     kpts.release();
     ids.release();
+
+    std::vector<cv::Mat> oRvecs, oTvecs, oNvecs;
+    currID = ranked_IDs[0][0];
+    currRank = ranked_IDs[0][1];
+    currMatches = final_matches[currID - 1];    //minus 1 because IDs start at 1 while index start at 0
+    currM = allMatrices[currID - 1];              //minus 1 because IDs start at 1 while index start at 0
+    input_file = dataset_location + curr_img + dataset_type;
+    std::cout<<input_file<<std::endl;
+    imread(input_file, CV_LOAD_IMAGE_GRAYSCALE).copyTo(img2);//get corresponding image
+
+    //TODO: publish photo and block waiting for true or false, if true, continue, if false, get another image
+
+    cv::Mat H = cv::Mat(currM, cv::Rect(0,0,3,currM.rows));
+    cv::Mat CamMatrix = cv::Mat::eye(3, 3, CV_32F);
+    int imageCenterX = img2.cols/2;
+    int imageCenterY = img2.rows/2;
+
+    CamMatrix.at< float >(0, 0) = 500;
+    CamMatrix.at< float >(1, 1) = 500;
+    CamMatrix.at< float >(0, 2) = imageCenterX;
+    CamMatrix.at< float >(1, 2) = imageCenterY;
+
+    decomposeHomographyMat(H, CamMatrix, oRvecs, oTvecs, oNvecs);
+    tf::TransformBroadcaster * br;
+    br = new tf::TransformBroadcaster[oRvecs.size()];
+    for (int  j = 0; j < oRvecs.size(); ++j)
+    {
+    	std::cout<<j + 1<<std::endl;
+    	std::cout<<oRvecs[j]<<std::endl<<std::endl;
+    	//the following lines are not guaranteed to be correct yet. Maybe an actual conversion is needed here.
+    	Eigen::Matrix3f m;
+    	cv2eigen(oRvecs[j], m);
+    	Eigen::Quaternionf q(m);
+    	cv::String tfStr = "rvec_frame" +std::to_string(j+1);
+    	tf::StampedTransform transform;
+    	tf::Quaternion t;
+    	tf::quaternionEigenToTF(Eigen::Quaterniond(q), t);
+    	//tf::()
+    	transform.setRotation(t);
+    	br[j].sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/kinect2_ir_optical_frame", tfStr));
+    }
 
     return EXIT_SUCCESS;
 }

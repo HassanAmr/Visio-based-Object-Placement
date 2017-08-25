@@ -696,6 +696,8 @@ int Run(cv::UMat queryImg, cv::String db_location, cv::String dataset_location)
     decomposeHomographyMat(H, CamMatrix, oRvecs, oTvecs, oNvecs);
     tf::TransformBroadcaster * br;
     br = new tf::TransformBroadcaster[oRvecs.size()];
+    ros::Rate r(10);
+    while(ros::ok()){
     for (int  j = 0; j < oRvecs.size(); ++j)
     {
     	std::cout<<j + 1<<std::endl;
@@ -712,7 +714,8 @@ int Run(cv::UMat queryImg, cv::String db_location, cv::String dataset_location)
     	transform.setRotation(t);
     	br[j].sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/kinect2_ir_optical_frame", tfStr));
     }
-
+    r.sleep();
+    }
     return EXIT_SUCCESS;
 }
 /*
@@ -752,6 +755,7 @@ int main(int argc, char **argv)
 		std::cout << "OpenCL was disabled" << std::endl;
 	}
 	*/
+	ros::init(argc, argv, "object_transormations");
 
 	cv::String queryName, db_location, dataset_location;
 	if (argc > 3)
@@ -774,8 +778,6 @@ int main(int argc, char **argv)
 
 	if (queryName == "--sub")
 	{
-		ros::init(argc, argv, "object_transormations");
-
 		sensor_msgs::ImageConstPtr msg = ros::topic::waitForMessage<sensor_msgs::Image>("/input_image");
 
 		try

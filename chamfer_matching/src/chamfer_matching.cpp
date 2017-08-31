@@ -34,7 +34,7 @@ cv::String RemoveFileExtension (const std::string& str)
 }
 
 
-void FdcmDetection(cv::Mat queryImg, int numberOfLineSegments)
+cv::Rect FdcmDetection(cv::Mat queryImg, int numberOfLineSegments)
 {
 	// Create Iamge
 	Image<uchar> inputImage;
@@ -160,7 +160,8 @@ void FdcmDetection(cv::Mat queryImg, int numberOfLineSegments)
 	//mexPrintf("Threshold = %lf; nDetWindows = %d\n",*maxThreshold,nDetWindows);
 
 	cv::Mat detWinds(nDetWindows,6, CV_64F);
-
+	cv::Rect roi;
+	int currMaxScore = 0;//will hold the max number of detection windows covered by the current detection window. From github description
 	for(int i=0;i<nDetWindows;i++)
 	{
 		detWinds.at<double>(cv::Point(0,i)) = 1.0*detWindArrays[last][i].x_;
@@ -169,7 +170,18 @@ void FdcmDetection(cv::Mat queryImg, int numberOfLineSegments)
 		detWinds.at<double>(cv::Point(3,i)) = 1.0*detWindArrays[last][i].height_;
 		detWinds.at<double>(cv::Point(4,i)) = 1.0*detWindArrays[last][i].cost_;
 		detWinds.at<double>(cv::Point(5,i)) = 1.0*detWindArrays[last][i].count_;
+
+		if (detWindArrays[last][i].count_ > currMaxScore)
+		{
+			currMaxScore = detWindArrays[last][i].count_;
+			roi.x = detWindArrays[last][i].x_;
+			roi.y = detWindArrays[last][i].y_;
+			roi.width = detWindArrays[last][i].width_;
+			roi.height = detWindArrays[last][i].height_;
+
+		}
 	}
+	return roi;
 
 }
 
@@ -198,7 +210,7 @@ int LineRepresentation(cv::Mat inputImg)
 
 	double sigma_fit_a_line = 0.5;
 	double sigma_find_support = 0.5;
-	double max_gap = 0.2;
+	double max_gap = 2.0;
 	double nLinesToFitInStage1 = 300;
 	double nTrialsPerLineInStage1 = 100;
 	double nLinesToFitInStage2 = 100000;
@@ -251,16 +263,16 @@ int LineRepresentation(cv::Mat inputImg)
 
 }
 
-cv::Mat CannyEdgeDetector(cv::Mat inputImg, int lowThreshold = 50)
+cv::Mat CannyEdgeDetector(cv::Mat inputImg, int lowThreshold = 50, int kernel_size = 3)
 {
 	cv::Mat dst, detected_edges;
 
 	int ratio = 3;
-	int kernel_size = 3;
 	dst.create( inputImg.size(), inputImg.type() );
 	blur( inputImg, detected_edges, cv::Size(kernel_size,kernel_size) );
 
-	Canny( detected_edges, detected_edges, lowThreshold, lowThreshold*ratio, kernel_size );
+	//Canny( detected_edges, detected_edges, lowThreshold, lowThreshold*ratio, kernel_size );
+	Canny( detected_edges, detected_edges, lowThreshold, lowThreshold*ratio);
 	dst = cv::Scalar::all(0);
 	inputImg.copyTo( dst, detected_edges);
 	return dst;
@@ -306,23 +318,32 @@ int Run(cv::Mat templateImg, cv::Mat queryImg)
 	Configurations are moved into their intended functions
 */
 	//cv::Mat	inputImg = CannyEdgeDetector(templateImg);
-	int dim = 180;
+	int dim = 500;
 
 //==================================================================
 // Convert edge map into line representation
 //==================================================================
 
-	int numberOfLineSegments = LineRepresentation(CannyEdgeDetector(GetSquareImage(templateImg, dim)));
+	//cv::Mat tempEdgeMap = templateImg;
+	cv::Mat tempEdgeMap = CannyEdgeDetector(templateImg);
+	//cv::Mat tempEdgeMap = CannyEdgeDetector(GetSquareImage(templateImg, dim), 50, 3);
+	cv::imwrite("Output/tempEdgeMap.jpg", tempEdgeMap);
+	int numberOfLineSegments = LineRepresentation(tempEdgeMap);
 	std::cout<<numberOfLineSegments<<std::endl;
 
 //==================================================================
 // FDCM detection
 //==================================================================
 
-	dim = 400;
+	//cv::Mat queryEdgeMap = queryImg;
+	cv::Mat queryEdgeMap = CannyEdgeDetector(queryImg);
+	//cv::Mat queryEdgeMap = CannyEdgeDetector(GetSquareImage(queryImg, dim), 50, 3);
+	cv::imwrite("Output/queryEdgeMap.jpg", queryEdgeMap);
+	cv::Rect roi = FdcmDetection(queryEdgeMap, numberOfLineSegments);
 
-	FdcmDetection(CannyEdgeDetector(GetSquareImage(queryImg, dim)), numberOfLineSegments);
 
+	rectangle(queryImg, roi, cv::Scalar( 255 ), 3, 8);
+	cv::imwrite("Output/result.jpg", queryImg);
 
 //-------------------------------------------------------
 	delete lineRep;

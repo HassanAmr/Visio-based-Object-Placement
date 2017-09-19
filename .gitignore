@@ -1,4 +1,5 @@
 kuka/
 image_publisher/
 depth_raw_to_image/
+image_search/scripts/*.pyc
 

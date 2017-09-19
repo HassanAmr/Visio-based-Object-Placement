@@ -38,8 +38,8 @@ if __name__ == '__main__':
         pass
     t0 = time.time()
 
-    #download_images.download(search_keyword, keywords, SEARCH_DESINATION_DIR, download_limit, LOG_PATH)
-    #image_retrieval.retrieve_nsmallest_dist(QUERY_IMG, SEARCH_DESINATION_DIR, RETRIEVED_PATH, N, DIST_TYPE, WEIGHTS_PATH, LOG_PATH)
+    download_images.download(search_keyword, keywords, SEARCH_DESINATION_DIR, download_limit, LOG_PATH)
+    image_retrieval.retrieve_nsmallest_dist(QUERY_IMG, SEARCH_DESINATION_DIR, RETRIEVED_PATH, N, DIST_TYPE, WEIGHTS_PATH, LOG_PATH)
 
     classify_image.classify(LABELS_PATH, GRAPH_PATH, RETRIEVED_PATH, UPRIGHT_PATH, LOG_PATH)
 

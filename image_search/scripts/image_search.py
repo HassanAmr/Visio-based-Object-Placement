@@ -1,3 +1,7 @@
+#!/usr/bin/env python
+
+
+import rospy
 import os
 import time
 import image_retrieval

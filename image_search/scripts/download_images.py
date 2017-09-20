@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 
 # coding: utf-8
 
@@ -9,6 +11,7 @@
 
 #coding: UTF-8
 
+import rospy
 import time       #Importing the time library to check the time of code execution
 import sys    #Importing the System Library
 import os

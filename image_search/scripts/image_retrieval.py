@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+
+
 ########################################################################################
 # Davi Frossard, 2016                                                                  #
 # VGG16 implementation in TensorFlow                                                   #
@@ -11,6 +14,7 @@
 # Modified for Image retrieval on the UKBenchmark image set using fc2 features         #
 ########################################################################################
 
+import rospy
 import tensorflow as tf
 import numpy as np
 import scipy.spatial.distance

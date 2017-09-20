@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+
+
 # Copyright 2016 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,6 +46,7 @@ from __future__ import division
 from __future__ import print_function
 
 import sys
+import rospy
 from os import listdir
 from os import makedirs
 from os.path import join

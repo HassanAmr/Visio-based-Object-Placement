@@ -1,4 +1,6 @@
 kuka/
 image_publisher/
 depth_raw_to_image/
+iai_kinect2/
+image_search/scripts/*.pyc
 

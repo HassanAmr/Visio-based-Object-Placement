@@ -29,7 +29,7 @@ tf::TransformListener * listener;
 tf::TransformBroadcaster * br;
 ros::Publisher pub;
 image_transport::Publisher imagePub;
-int fileCounter = 0;
+//int fileCounter = 0;
 
 //const std::string fileExt = ".pcd";
 const std::string fileExt = ".jpg";
@@ -55,7 +55,7 @@ void callback(const PointCloud::ConstPtr& msg, const sensor_msgs::Image::ConstPt
 
     //std::cout<< zDirection.transpose()<< std::endl;
     br->sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/kinect2_ir_optical_frame", "iiwa_end_effector_link"));
-    printf ("Cloud: width = %d, height = %d\n", msg->width, msg->height);
+    //printf ("Cloud: width = %d, height = %d\n", msg->width, msg->height);
 
     int i = 0;
 
@@ -169,22 +169,22 @@ void callback(const PointCloud::ConstPtr& msg, const sensor_msgs::Image::ConstPt
 
     //pub.publish(*cloud);
     
-    std::ostringstream oss;
-    oss << fileCounter << fileExt;
-    std::cout << oss.str()<< " created." << std::endl;
+    //std::ostringstream oss;
+    //oss << fileCounter << fileExt;
+    //std::cout << oss.str()<< " created." << std::endl;
     
 
-    cv::imwrite(oss.str(), image);
+    //cv::imwrite(oss.str(), image);
 
-    std::ostringstream oss_rgb;
-    oss_rgb << fileCounter << "_rgb" << fileExt;
-    std::cout << oss_rgb.str()<< " created." << std::endl;
+    //std::ostringstream oss_rgb;
+    //oss_rgb << fileCounter << "_rgb" << fileExt;
+    //std::cout << oss_rgb.str()<< " created." << std::endl;
 
-    cv::imwrite(oss_rgb.str(), image_rgb);
+    //cv::imwrite(oss_rgb.str(), image_rgb);
 
 
     //pcl::io::savePCDFileASCII (oss.str(), *cloud);
-    fileCounter++;
+    //fileCounter++;
     //ros::shutdown();
   }
   catch (tf::TransformException &ex) {

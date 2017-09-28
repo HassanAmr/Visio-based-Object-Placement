@@ -70,9 +70,6 @@ def image_callback(msg):
     t0_cache = time.time()
 
     
-    #if args.from_disk is "":
-    #    pass
-    #else:
     #bg_subtracted_path = "bg_subtracted_image.jpg"
     #scene_path = "scene_image.jpg"
     #bg_subtracted_image = cv2.imread(bg_subtracted_path)
@@ -98,14 +95,14 @@ def image_callback(msg):
         #for the list above check query_image.jpeg against curr image in the following
         #test_image = cwd + "/"+ curr_dir + CACHED_QUERY_FILE_NAME
         test_image_path = curr_dir + CACHED_QUERY_FILE_NAME
-
         curr_dist = image_retrieval.retrieve_dist(QUERY_IMG, test_image_path, DIST_TYPE, vgg, sess)
+        print(curr_dist)
         if curr_dist < min_dist:
             min_dist = curr_dist
             curr_dir_session = curr_dir
             found_cache = True
 
-    print("Min dist: %f\n" % min_dist)
+    print("\nMin dist: %f\n" % min_dist)
     #True is the default case for all steps unless..
     run_cloud_api_step = False
     run_image_download_step = True
@@ -129,7 +126,7 @@ def image_callback(msg):
         run_image_download_step = False
         run_retrieve_nsmallest_dist_step = False
         run_upright_classification_step = False
-        run_image_rotation_step = True
+        run_image_rotation_step = False
         f.close()
     else:
         curr_dir_session = datetime.datetime.now().strftime('%d%m%Y%H%M%S')
@@ -141,6 +138,9 @@ def image_callback(msg):
         cv2.imwrite(curr_dir_session + "/query_image.jpg", cv_query_image)
         cv2.imwrite(curr_dir_session + "/bg_subtracted_image.jpg", bg_subtracted_image)
         #cv2.imwrite(curr_dir_session + "/scene_image.jpg", scene_image)
+
+    rospy.set_param('/visiobased_placement/curr_dir_session', cwd + "/" + curr_dir_session + "/")
+    #rospy.set_param('bool_True', "true")
 
     LOG_PATH = curr_dir_session + "/" + LOG_PATH
     SEARCH_DESINATION_DIR = curr_dir_session + "/" + SEARCH_DESINATION_DIR

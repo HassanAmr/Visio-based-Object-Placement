@@ -15,26 +15,29 @@ import message_filters
 from sensor_msgs.msg import Image
 # ROS Image message -> OpenCV2 image converter
 from cv_bridge import CvBridge, CvBridgeError
-import cv2 # OpenCV2 for saving an image
+#import cv2 # OpenCV2 for saving an image
 
 
 # Instantiate CvBridge
 bridge = CvBridge()
+images_received=False
 
 def callback(bg_image, scene_image):
     # Solve all of perception here...
-    print("Received an image!")
+    print("hahhahaahahahahahahah")
     try:
         # Convert your ROS Image message to OpenCV2
-        cv2_bg_image = bridge.imgmsg_to_cv2(bg_image, "bgr8")
-        cv2_scene_image = bridge.imgmsg_to_cv2(scene_image, "bgr8")
+        if images_received is False:
+            cv2_bg_image = bridge.imgmsg_to_cv2(bg_image, "bgr8")
+            cv2_scene_image = bridge.imgmsg_to_cv2(scene_image, "bgr8")
+            images_received = True
+
     except CvBridgeError, e:
         print(e)
-    else:
-        #return [cv2_bg_image, cv2_scene_image]
-        cv2.imwrite('query_image.jpeg', cv2_bg_image)
-        cv2.imwrite('scene_image.jpeg', cv2_scene_image)
-        #rospy.signal_shutdown("Images acquired...")
+    #else:
+            #return [cv2_bg_image, cv2_scene_image]
+            #cv2.imwrite('bg_subtracted_image.jpg', cv2_bg_image)
+            #cv2.imwrite('scene_image.jpg', cv2_scene_image)
 
 
 

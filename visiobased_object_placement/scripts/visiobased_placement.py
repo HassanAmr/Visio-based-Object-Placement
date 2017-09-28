@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import rospy
-import roslaunch
+import rosparam
 import errno
 import os
 import argparse
@@ -16,39 +16,14 @@ import image_rotation
 import image_crop
 import ros_image_listener
 import tensorflow as tf
+from sensor_msgs import msg
+from cv_bridge import CvBridge, CvBridgeError # ROS Image message -> OpenCV2 image converter
 import cv2 # OpenCV2 for saving an image
 from PIL import Image 
 
 
 #Some of the following should be set in a roslaunch file
 ## download_images parameters
-
-search_keyword = ['cheez-it', 'junk food']          #TODO: These should come from the API module.
-keywords = ['']
-download_limit = 20                                #TODO: impelement in download_images and get this number from the roslaunch file
-
-
-
-WEIGHTS_PATH = '/home/hassan/Tools/data/vgg16_weights.npz'
-
-GRAPH_PATH='/home/hassan/Tools/data/output_graph.pb'
-LABELS_PATH='/home/hassan/Tools/data/output_labels.txt'
-
-
-LOG_PATH='logs'
-SEARCH_DESINATION_DIR = 'seach_results'
-RETRIEVED_PATH='retrieved_results'
-UPRIGHT_PATH='upright_results'
-ROTATION_PATH='rotation_results'
-#QUERY_IMG='query_image.jpeg'                                  #TODO: This should come from an image subscriber
-
-
-CACHED_QUERY_FILE_NAME = "/query_image.jpg"        #TODO: This should come from the roslaunch file settins
-
-#TODO: The following 2 should come from the roslaunch file
-N=10
-DIST_TYPE='euc'
-CACHE_THRESHOLD = 10
 
 parser = argparse.ArgumentParser()
 
@@ -61,8 +36,36 @@ parser.add_argument("--download_images", help="A flag to re-download images from
 args = parser.parse_args()
 
 
-if __name__ == '__main__':
 
+bridge = CvBridge()
+
+def image_callback(msg):
+
+    CACHED_QUERY_FILE_NAME = rospy.get_param("/visiobased_placement/CACHED_QUERY_FILE_NAME")
+    CACHE_THRESHOLD = rospy.get_param("/visiobased_placement/CACHE_THRESHOLD")
+    DIST_TYPE = rospy.get_param("/visiobased_placement/DIST_TYPE")
+    GRAPH_PATH = rospy.get_param("/visiobased_placement/GRAPH_PATH")
+    LABELS_PATH = rospy.get_param("/visiobased_placement/LABELS_PATH")
+    LOG_PATH = rospy.get_param("/visiobased_placement/LOG_PATH")
+    N = rospy.get_param("/visiobased_placement/N")
+    RETRIEVED_PATH = rospy.get_param("/visiobased_placement/RETRIEVED_PATH")
+    ROTATION_PATH = rospy.get_param("/visiobased_placement/ROTATION_PATH")
+    SEARCH_DESINATION_DIR = rospy.get_param("/visiobased_placement/SEARCH_DESINATION_DIR")
+    UPRIGHT_PATH = rospy.get_param("/visiobased_placement/UPRIGHT_PATH")
+    WEIGHTS_PATH = rospy.get_param("/visiobased_placement/WEIGHTS_PATH")
+    download_limit = rospy.get_param("/visiobased_placement/download_limit")
+    keywords = rospy.get_param("/visiobased_placement/keywords")
+    search_keyword = rospy.get_param("/visiobased_placement/search_keyword") #TODO: This should be removed once API is online
+
+    try:
+        # Convert your ROS Image message to OpenCV2
+        bg_subtracted_image = bridge.imgmsg_to_cv2(msg, "bgr8")
+        sub_once.unregister()
+    except CvBridgeError, e:
+        print(e)
+    #else:
+        # Save your OpenCV2 image as a jpeg 
+        #cv2.imwrite('camera_image.jpeg', cv2_img)
 
     t0_cache = time.time()
 
@@ -70,20 +73,13 @@ if __name__ == '__main__':
     #if args.from_disk is "":
     #    pass
     #else:
-    bg_subtracted_image = "bg_subtracted_image.jpg"
-    scene_image = "scene_image.jpg"
-    cropped_image = image_crop.crop(cv2.imread(bg_subtracted_image))    #TODO: from subsriber
-    cv2.imwrite("cropped.jpg", cropped_image)
-    QUERY_IMG = np.asarray( cv2.cvtColor(cropped_image[:,:], cv2.COLOR_BGR2RGB) )
-
-    #print ("done")
-    #TODO: run ros_image_saver.py to set QUERY_IMG from it or from a input arg
-    #ros_image_listener.main()
-    #while (ros_image_listener.images_received is False):
-    #    pass
-
-    #QUERY_IMG = ros_image_listener.cv2_bg_image
-    #ros_image_listener.image_listener_shutdown()
+    #bg_subtracted_path = "bg_subtracted_image.jpg"
+    #scene_path = "scene_image.jpg"
+    #bg_subtracted_image = cv2.imread(bg_subtracted_path)
+    #scene_image = cv2.imread(scene_path)
+    cv_query_image = image_crop.crop(bg_subtracted_image)
+    cv2.imwrite("query_image.jpg", cv_query_image)
+    QUERY_IMG = np.asarray( cv2.cvtColor(cv_query_image[:,:], cv2.COLOR_BGR2RGB) )
 
     # Setup Session
     # This will be used for the chaching  and retrieve_nsmallest_dist steps
@@ -133,18 +129,18 @@ if __name__ == '__main__':
         run_image_download_step = False
         run_retrieve_nsmallest_dist_step = False
         run_upright_classification_step = False
-        run_image_rotation_step = False
+        run_image_rotation_step = True
         f.close()
     else:
         curr_dir_session = datetime.datetime.now().strftime('%d%m%Y%H%M%S')
-        #TODO: Save the following inside curr_session_dir
-        #bg_subtracted_image = "bg_subtracted_image.jpeg"
-        #scene_image = "scene_image.jpeg"
-        #QUERY_IMG =
         try:
             os.makedirs(curr_dir_session)
         except OSError, e:
             raise  # Here we raise even when folder exists because it should not exist.
+
+        cv2.imwrite(curr_dir_session + "/query_image.jpg", cv_query_image)
+        cv2.imwrite(curr_dir_session + "/bg_subtracted_image.jpg", bg_subtracted_image)
+        #cv2.imwrite(curr_dir_session + "/scene_image.jpg", scene_image)
 
     LOG_PATH = curr_dir_session + "/" + LOG_PATH
     SEARCH_DESINATION_DIR = curr_dir_session + "/" + SEARCH_DESINATION_DIR
@@ -222,7 +218,7 @@ if __name__ == '__main__':
     if run_image_rotation_step:
         print("Image rotation step")
         t0_step = time.time()
-        image_rotation.find_rotation_matrix(QUERY_IMG, UPRIGHT_PATH, ROTATION_PATH, LOG_PATH)
+        image_rotation.find_rotation_matrix(cv_query_image, UPRIGHT_PATH, ROTATION_PATH, LOG_PATH)
         t1_step = time.time()
         step_time = t1_step-t0_step
         print("\nImage rotation: " + str(step_time))
@@ -241,3 +237,21 @@ if __name__ == '__main__':
 
     fp.close()
     ch.close()
+    rospy.signal_shutdown("Object Placed. Check if anything is broken ;)")
+
+
+
+if __name__ == '__main__':
+
+    rospy.init_node('image_listener')
+
+    paramlist = rosparam.load_file("params.yaml",default_namespace="visiobased_placement")
+    for params, ns in paramlist:
+        rosparam.upload_params(ns,params)
+
+    # Define your image topic
+    image_topic = "/bg_subtracted_image"
+    # Set up your subscriber and define its callback
+    sub_once = rospy.Subscriber(image_topic, msg.Image, image_callback)
+    # Spin until ctrl + c
+    rospy.spin()

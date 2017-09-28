@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 
 
-def crop(inputImg, threshold=0):
+def crop(image, threshold=0):
     """Crops any edges below or equal to threshold
 
     Crops blank image to 1x1.
@@ -14,7 +14,7 @@ def crop(inputImg, threshold=0):
 
     """
 
-    image = cv2.imread(inputImg)
+    #image = cv2.imread(inputImg)
     if len(image.shape) == 3:
         flatImage = np.max(image, 2)
     else:

@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 
 import rospy
+import roslaunch
 import errno
 import os
+import argparse
+import numpy as np
 import datetime
 import time
 import csv
@@ -14,10 +17,12 @@ import image_crop
 import ros_image_listener
 import tensorflow as tf
 import cv2 # OpenCV2 for saving an image
+from PIL import Image 
 
 
 #Some of the following should be set in a roslaunch file
 ## download_images parameters
+
 search_keyword = ['cheez-it', 'junk food']          #TODO: These should come from the API module.
 keywords = ['']
 download_limit = 20                                #TODO: impelement in download_images and get this number from the roslaunch file
@@ -38,24 +43,40 @@ ROTATION_PATH='rotation_results'
 #QUERY_IMG='query_image.jpeg'                                  #TODO: This should come from an image subscriber
 
 
-CACHED_QUERY_FILE_NAME = "/query_image.jpeg"        #TODO: This should come from the roslaunch file settins
+CACHED_QUERY_FILE_NAME = "/query_image.jpg"        #TODO: This should come from the roslaunch file settins
 
 #TODO: The following 2 should come from the roslaunch file
 N=10
 DIST_TYPE='euc'
 CACHE_THRESHOLD = 10
 
+parser = argparse.ArgumentParser()
+
+
+parser.add_argument("--download_images", help="A flag to re-download images from the web",
+                    action="store_true")
+
+#parser.add_argument("--from_disk", help="run pipeline from disk")
+
+args = parser.parse_args()
+
+
 if __name__ == '__main__':
 
 
     t0_cache = time.time()
 
-    bg_subtracted_image = "bg_subtracted_image.jpeg"
-    scene_image = "scene_image.jpeg"
-    QUERY_IMG = image_crop.crop(bg_subtracted_image)
-    cv2.imwrite("cropped.jpg", QUERY_IMG)
-    print ("done")
-    time.sleep(10)
+    
+    #if args.from_disk is "":
+    #    pass
+    #else:
+    bg_subtracted_image = "bg_subtracted_image.jpg"
+    scene_image = "scene_image.jpg"
+    cropped_image = image_crop.crop(cv2.imread(bg_subtracted_image))    #TODO: from subsriber
+    cv2.imwrite("cropped.jpg", cropped_image)
+    QUERY_IMG = np.asarray( cv2.cvtColor(cropped_image[:,:], cv2.COLOR_BGR2RGB) )
+
+    #print ("done")
     #TODO: run ros_image_saver.py to set QUERY_IMG from it or from a input arg
     #ros_image_listener.main()
     #while (ros_image_listener.images_received is False):
@@ -80,15 +101,16 @@ if __name__ == '__main__':
     for curr_dir in dirs_list:
         #for the list above check query_image.jpeg against curr image in the following
         #test_image = cwd + "/"+ curr_dir + CACHED_QUERY_FILE_NAME
-        test_image = curr_dir + CACHED_QUERY_FILE_NAME
+        test_image_path = curr_dir + CACHED_QUERY_FILE_NAME
 
-        curr_dist = image_retrieval.retrieve_dist(QUERY_IMG, test_image, DIST_TYPE, vgg, sess)
+        curr_dist = image_retrieval.retrieve_dist(QUERY_IMG, test_image_path, DIST_TYPE, vgg, sess)
         if curr_dist < min_dist:
             min_dist = curr_dist
             curr_dir_session = curr_dir
             found_cache = True
 
-    #True is the default case for all steps unl
+    print("Min dist: %f\n" % min_dist)
+    #True is the default case for all steps unless..
     run_cloud_api_step = False
     run_image_download_step = True
     run_retrieve_nsmallest_dist_step = True
@@ -97,11 +119,15 @@ if __name__ == '__main__':
 
     if found_cache:
         print(curr_dir_session)
-        QUERY_IMG=curr_dir_session + CACHED_QUERY_FILE_NAME # we set it from the cached query_image since we want all the stats to correspond to the same exact image. 
+        # we set it from the cached query_image since we want all the stats to correspond to the same exact image. 
+        cv_image = cv2.imread(curr_dir_session + CACHED_QUERY_FILE_NAME)
+        QUERY_IMG = np.asarray( cv2.cvtColor(cv_image[:,:], cv2.COLOR_BGR2RGB) )
+        #QUERY_IMG=curr_dir_session + CACHED_QUERY_FILE_NAME 
         f = open(curr_dir_session + "/checklist.csv", 'rb')
         reader = csv.reader(f)
         for row in reader:
             print (row)
+        #TODO: set keywords from keyword.txt
         #TODO: Check checklist and set the following accordingly
         run_cloud_api_step = False
         run_image_download_step = False
@@ -111,6 +137,10 @@ if __name__ == '__main__':
         f.close()
     else:
         curr_dir_session = datetime.datetime.now().strftime('%d%m%Y%H%M%S')
+        #TODO: Save the following inside curr_session_dir
+        #bg_subtracted_image = "bg_subtracted_image.jpeg"
+        #scene_image = "scene_image.jpeg"
+        #QUERY_IMG =
         try:
             os.makedirs(curr_dir_session)
         except OSError, e:
@@ -145,11 +175,15 @@ if __name__ == '__main__':
     #Cloud API step
     if run_cloud_api_step:
         print("CLOUD API!")
-        search_keyword = detect_image.detect_web(QUERY_IMG)
-        #TODO: Save results to file to cache it
+        image_from_np =Image.fromarray(QUERY_IMG)
+        search_keyword = detect_image.detect_web(image_from_np)
+        kw = open(curr_dir_session+"/"+ "keywords.txt", 'w')
+        for item in search_keyword:
+            kw.write("%s\n" % item)
+        kw.close()
 
     #Image Download Step
-    if run_image_download_step:
+    if args.download_images or run_image_download_step:
         print("Image download step")
         t0_step = time.time()
         download_images.download(search_keyword, keywords, SEARCH_DESINATION_DIR, download_limit, LOG_PATH)
@@ -205,9 +239,5 @@ if __name__ == '__main__':
 
     #fp.write(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()) + ":\tTotal time taken:\t\t" + str(total) + "\n")
 
-    #TODO: Save the following inside curr_session_dir
-    #bg_subtracted_image = "bg_subtracted_image.jpeg"
-    #scene_image = "scene_image.jpeg"
-    #QUERY_IMG =
     fp.close()
     ch.close()

@@ -280,18 +280,18 @@ class vgg16:
         denominator = square_rooted(x)*square_rooted(y)
         return round(numerator/float(denominator),3)
 
-def retrieve_nsmallest_dist(query_path, test_dir, out_dir, n, dist_type, log_dir, vgg, sess):
+def retrieve_nsmallest_dist(query_image, test_dir, out_dir, n, dist_type, log_dir, vgg, sess):
     """This function will compare a query image against all images provided in the test_dir, and save/log the smallest n images to the out_dir
 
     Args:
-        query_path (str):   Query image path
-        test_dir (str):     Location of the test images
-        out_dir (str):      Location to the save the retrieved images
-        n (int):            Number of images to retrieve
-        dist_type (str):    The distance algorithm (euc, cos, chev)
-        log_path (str):     Path of the logs directory to save the logs in
-        vgg (class vgg16):  Object of the vgg16 class
-        sess(tf Session):   Object of the tensorflow session
+        query_image (np.darray):    Query image
+        test_dir (str):             Location of the test images
+        out_dir (str):              Location to the save the retrieved images
+        n (int):                    Number of images to retrieve
+        dist_type (str):            The distance algorithm (euc, cos, chev)
+        log_path (str):             Path of the logs directory to save the logs in
+        vgg (class vgg16):          Object of the vgg16 class
+        sess(tf Session):           Object of the tensorflow session
 
     """
     # Get number of images to match (default 4)
@@ -316,8 +316,8 @@ def retrieve_nsmallest_dist(query_path, test_dir, out_dir, n, dist_type, log_dir
     # Retrieve feature vector for query image 
     #Setup Dict and precision tracking
     img_dict = {}
-    img_query = imread(query_path)
-    img_query = imresize(img_query, (224, 224))
+    #img_query = imread(query_path)
+    img_query = imresize(query_image, (224, 224))
 
     # Extract image descriptor in layer fc2/Relu. If you want, change fc2 to fc1
     layer_query = sess.graph.get_tensor_by_name('fc2/Relu:0')
@@ -387,15 +387,15 @@ def retrieve_nsmallest_dist(query_path, test_dir, out_dir, n, dist_type, log_dir
     fp.close()
 
 
-def retrieve_dist(query_path, test_path, dist_type, vgg, sess):
+def retrieve_dist(query_image, test_path, dist_type, vgg, sess):
     """This function will compare a query image against all images provided in the test_dir, and save/log the smallest n images to the out_dir
 
     Args:
-        query_path (str):   Query image path
-        test_dir (str):     Location of the test images
-        dist_type (str):    The distance algorithm (euc, cos, chev)
-        vgg (class vgg16):  Object of the vgg16 class
-        sess(tf Session):   Object of the tensorflow session
+        query_image (np.darray):    Query image path
+        test_dir (str):             Location of the test images
+        dist_type (str):            The distance algorithm (euc, cos, chev)
+        vgg (class vgg16):          Object of the vgg16 class
+        sess(tf Session):           Object of the tensorflow session
 
     """
     # Get number of images to match (default 4)
@@ -416,8 +416,8 @@ def retrieve_dist(query_path, test_path, dist_type, vgg, sess):
     # Retrieve feature vector for query image 
     #Setup Dict and precision tracking
     img_dict = {}
-    img_query = imread(query_path)
-    img_query = imresize(img_query, (224, 224))
+    #img_query = imread(query_path)
+    img_query = imresize(query_image, (224, 224))
     img_test = imread(test_path)
     img_test = imresize(img_test, (224, 224))
 

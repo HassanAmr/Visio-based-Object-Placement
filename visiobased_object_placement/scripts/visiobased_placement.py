@@ -2,8 +2,10 @@
 
 import rospy
 import rosparam
+import rospkg
 import errno
 import os
+import io
 import argparse
 import numpy as np
 import datetime
@@ -14,6 +16,7 @@ import classify_image
 import download_images
 import image_rotation
 import image_crop
+import detect_image
 import ros_image_listener
 import tensorflow as tf
 from sensor_msgs import msg
@@ -21,17 +24,12 @@ from cv_bridge import CvBridge, CvBridgeError # ROS Image message -> OpenCV2 ima
 import cv2 # OpenCV2 for saving an image
 from PIL import Image 
 
-
-#Some of the following should be set in a roslaunch file
-## download_images parameters
-
 parser = argparse.ArgumentParser()
 
 
-parser.add_argument("--download_images", help="A flag to re-download images from the web",
-                    action="store_true")
+parser.add_argument("--download_images", help="A flag to re-download images from the web", action="store_true")
 
-#parser.add_argument("--from_disk", help="run pipeline from disk")
+parser.add_argument("--from_disk", help="run pipeline from disk")
 
 args = parser.parse_args()
 
@@ -55,7 +53,7 @@ def image_callback(msg):
     WEIGHTS_PATH = rospy.get_param("/visiobased_placement/WEIGHTS_PATH")
     download_limit = rospy.get_param("/visiobased_placement/download_limit")
     keywords = rospy.get_param("/visiobased_placement/keywords")
-    search_keyword = rospy.get_param("/visiobased_placement/search_keyword") #TODO: This should be removed once API is online
+    #search_keyword = rospy.get_param("/visiobased_placement/search_keyword") #TODO: This should be removed once API is online
 
     try:
         # Convert your ROS Image message to OpenCV2
@@ -94,7 +92,7 @@ def image_callback(msg):
     for curr_dir in dirs_list:
         #for the list above check query_image.jpeg against curr image in the following
         #test_image = cwd + "/"+ curr_dir + CACHED_QUERY_FILE_NAME
-        test_image_path = curr_dir + CACHED_QUERY_FILE_NAME
+        test_image_path = curr_dir + "/" + CACHED_QUERY_FILE_NAME
         curr_dist = image_retrieval.retrieve_dist(QUERY_IMG, test_image_path, DIST_TYPE, vgg, sess)
         print(curr_dist)
         if curr_dist < min_dist:
@@ -104,16 +102,13 @@ def image_callback(msg):
 
     print("\nMin dist: %f\n" % min_dist)
     #True is the default case for all steps unless..
-    run_cloud_api_step = False
+    run_cloud_api_step = True
     run_image_download_step = True
-    run_retrieve_nsmallest_dist_step = True
-    run_upright_classification_step = True
-    run_image_rotation_step = True
 
     if found_cache:
         print(curr_dir_session)
         # we set it from the cached query_image since we want all the stats to correspond to the same exact image. 
-        cv_image = cv2.imread(curr_dir_session + CACHED_QUERY_FILE_NAME)
+        cv_image = cv2.imread(curr_dir_session + "/" + CACHED_QUERY_FILE_NAME)
         QUERY_IMG = np.asarray( cv2.cvtColor(cv_image[:,:], cv2.COLOR_BGR2RGB) )
         #QUERY_IMG=curr_dir_session + CACHED_QUERY_FILE_NAME 
         f = open(curr_dir_session + "/checklist.csv", 'rb')
@@ -124,9 +119,7 @@ def image_callback(msg):
         #TODO: Check checklist and set the following accordingly
         run_cloud_api_step = False
         run_image_download_step = False
-        run_retrieve_nsmallest_dist_step = False
-        run_upright_classification_step = False
-        run_image_rotation_step = False
+
         f.close()
     else:
         curr_dir_session = datetime.datetime.now().strftime('%d%m%Y%H%M%S')
@@ -139,7 +132,6 @@ def image_callback(msg):
         cv2.imwrite(curr_dir_session + "/bg_subtracted_image.jpg", bg_subtracted_image)
         #cv2.imwrite(curr_dir_session + "/scene_image.jpg", scene_image)
 
-    rospy.set_param('/visiobased_placement/curr_dir_session', cwd + "/" + curr_dir_session + "/")
     #rospy.set_param('bool_True', "true")
 
     LOG_PATH = curr_dir_session + "/" + LOG_PATH
@@ -171,15 +163,28 @@ def image_callback(msg):
     #Cloud API step
     if run_cloud_api_step:
         print("CLOUD API!")
-        image_from_np =Image.fromarray(QUERY_IMG)
-        search_keyword = detect_image.detect_web(image_from_np)
+        #content =Image.fromarray(QUERY_IMG)
+        #content = QUERY_IMG.tobytes(None)
+        ##For testing only
+        #img_from_disk = (io.open('query_image.jpg', 'rb'))
+        #content = img_from_disk.read()
+        image_from_numpy = Image.fromarray(QUERY_IMG)
+        imageBuffer = io.BytesIO()
+        image_from_numpy.save(imageBuffer, format='PNG')
+        imageBuffer.seek(0)
+        #print(type(image_from_numpy))
+        #exit(0)
+
+        web_results = detect_image.report(detect_image.detect_web(imageBuffer))
+        search_keyword = web_results[:4] #get only highest 5 results
+        print (search_keyword)
         kw = open(curr_dir_session+"/"+ "keywords.txt", 'w')
         for item in search_keyword:
             kw.write("%s\n" % item)
         kw.close()
 
     #Image Download Step
-    if args.download_images or run_image_download_step:
+    if run_image_download_step:
         print("Image download step")
         t0_step = time.time()
         download_images.download(search_keyword, keywords, SEARCH_DESINATION_DIR, download_limit, LOG_PATH)
@@ -191,41 +196,63 @@ def image_callback(msg):
         chWriter.writerow(["Image download", time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())])
 
     #retrieve_nsmallest_dist step
-    if run_retrieve_nsmallest_dist_step:
-        print("Retrieve nsmallest distance step")
-        t0_step = time.time()
-        image_retrieval.retrieve_nsmallest_dist(QUERY_IMG, SEARCH_DESINATION_DIR, RETRIEVED_PATH, N, DIST_TYPE, LOG_PATH, vgg, sess)
-        t1_step = time.time()
-        step_time = t1_step-t0_step
-        print("\nRetrieve nsmallest distance: " + str(step_time))
-        #fp.write(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()) + ":\tRetrieve nsmallest distance:\t" + str(step_time) + "\n")
-        fpWriter.writerow([time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()), "Retrieve nsmallest distance", str(step_time)])
-        chWriter.writerow(["Retrieve nsmallest distance", time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())])
+    print("Retrieve nsmallest distance step")
+
+    try:
+        os.makedirs(RETRIEVED_PATH)
+    except OSError, e:
+        if e.errno != errno.EEXIST:
+            raise  # This was not a "directory exist" error..
+        pass
+
+    t0_step = time.time()
+    image_retrieval.retrieve_nsmallest_dist(QUERY_IMG, SEARCH_DESINATION_DIR, RETRIEVED_PATH, N, DIST_TYPE, LOG_PATH, vgg, sess)
+    t1_step = time.time()
+    step_time = t1_step-t0_step
+    print("\nRetrieve nsmallest distance: " + str(step_time))
+    #fp.write(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()) + ":\tRetrieve nsmallest distance:\t" + str(step_time) + "\n")
+    fpWriter.writerow([time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()), "Retrieve nsmallest distance", str(step_time)])
+    chWriter.writerow(["Retrieve nsmallest distance", time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())])
 
     #Upright classification step
-    if run_upright_classification_step:
-        print("Upright classification step")
-        t0_step = time.time()
-        classify_image.classify(LABELS_PATH, GRAPH_PATH, RETRIEVED_PATH, UPRIGHT_PATH, LOG_PATH)
-        t1_step = time.time()
-        step_time = t1_step-t0_step
-        print("\nUpright classification: " + str(step_time))
-        #fp.write(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()) + ":\tUpright classification:\t\t" + str(step_time) + "\n")
-        fpWriter.writerow([time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()), "Upright classification", str(step_time)])
-        chWriter.writerow(["Upright classification", time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())])
+    print("Upright classification step")
+
+    try:
+        os.makedirs(UPRIGHT_PATH)
+    except OSError, e:
+        if e.errno != errno.EEXIST:
+            raise  # This was not a "directory exist" error..:
+        pass
+
+    t0_step = time.time()
+    classify_image.classify(LABELS_PATH, GRAPH_PATH, RETRIEVED_PATH, UPRIGHT_PATH, LOG_PATH)
+    t1_step = time.time()
+    step_time = t1_step-t0_step
+    print("\nUpright classification: " + str(step_time))
+    #fp.write(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()) + ":\tUpright classification:\t\t" + str(step_time) + "\n")
+    fpWriter.writerow([time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()), "Upright classification", str(step_time)])
+    chWriter.writerow(["Upright classification", time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())])
 
     #Image rotation step
-    if run_image_rotation_step:
-        print("Image rotation step")
-        t0_step = time.time()
-        image_rotation.find_rotation_matrix(cv_query_image, UPRIGHT_PATH, ROTATION_PATH, LOG_PATH)
-        t1_step = time.time()
-        step_time = t1_step-t0_step
-        print("\nImage rotation: " + str(step_time))
-        #TODO: write the rotation matrix to rotation.csv
-        #fp.write(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()) + ":\tImage rotation:\t\t\t" + str(step_time) + "\n")
-        fpWriter.writerow([time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()), "Image rotation", str(step_time)])
-        chWriter.writerow(["Image rotation", time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())])
+    #The following indicates that the current working directory is availabe for further processing. Currently, only this step relies on it
+    print("Image rotation step")
+    try:
+        os.makedirs(ROTATION_PATH)
+    except OSError, e:
+        if e.errno != errno.EEXIST:
+            raise  # This was not a "directory exist" error..
+        pass
+    #t0_step = time.time()
+    #image_rotation.find_rotation_matrix(cv_query_image, UPRIGHT_PATH, ROTATION_PATH, LOG_PATH)
+    rospy.set_param('/visiobased_placement/cwd', cwd + "/" + curr_dir_session + "/")
+    #TODO: write the rotation matrix to rotation.csv
+
+    #t1_step = time.time()
+    #step_time = t1_step-t0_step
+    #print("\nImage rotation: " + str(step_time))
+    #fp.write(time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()) + ":\tImage rotation:\t\t\t" + str(step_time) + "\n")
+    #fpWriter.writerow([time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()), "Image rotation", str(step_time)])
+    #chWriter.writerow(["Image rotation", time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())])
 
     #Record end time then log and print how long it took
     t1 = time.time()
@@ -237,14 +264,16 @@ def image_callback(msg):
 
     fp.close()
     ch.close()
-    rospy.signal_shutdown("Object Placed. Check if anything is broken ;)")
+    #rospy.signal_shutdown("Object Placed. Check if anything is broken ;)")
 
 
 
 if __name__ == '__main__':
 
     rospy.init_node('image_listener')
-
+    rospack = rospkg.RosPack()
+    #package_path = rospack.get_path('visiobased_object_placement')
+    #paramlist = rosparam.load_file(package_path + "/params.yaml",default_namespace="visiobased_placement")
     paramlist = rosparam.load_file("params.yaml",default_namespace="visiobased_placement")
     for params, ns in paramlist:
         rosparam.upload_params(ns,params)

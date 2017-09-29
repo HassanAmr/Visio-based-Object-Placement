@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
   image_transport
+  kuka_moveit_controller
 )
 
 ## System dependencies are found with CMake's conventions

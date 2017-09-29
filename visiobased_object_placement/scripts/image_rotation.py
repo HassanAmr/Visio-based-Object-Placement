@@ -13,14 +13,6 @@ from os.path import basename
 
 def find_rotation_matrix(query_image, in_dir, out_dir, log_dir):
 
-
-    try:
-        makedirs(out_dir)
-    except OSError, e:
-        if e.errno != errno.EEXIST:
-            raise  # This was not a "directory exist" error..
-        pass
-
     MIN_MATCH_COUNT = 10
 
     #img1 = cv2.imread(query_path,0)          # queryImage

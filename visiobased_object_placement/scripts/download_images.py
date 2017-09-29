@@ -179,10 +179,16 @@ def download(search_keyword, keywords, destination_dir, download_limit, log_dir)
                 errorCount+=1
                 print("HTTPError"+str(k))
                 k=k+1;
+
             except URLError as e:
 
                 errorCount+=1
                 print("URLError "+str(k))
+                k=k+1;
+
+            except:
+                errorCount+=1
+                print("Unkown Error! "+str(k))
                 k=k+1;
 
         i = i+1

@@ -23,21 +23,18 @@
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/calib3d/calib3d.hpp"
+#include <MoveItController.h>
 
 
 int outputCounter = 1;
 const float ratio_Lowe = 0.8f; // As in Lowe's paper; can be tuned
 
-//Always make sure this is accounted for
-
-const int X_RES = 640;
-const int Y_RES = 512;
 
 const int GOOD_PORTION = 10;
 
 //junk delete later
-cv::FileStorage f_verification("output/verification/F_verification.xml", cv::FileStorage::WRITE);
-cv::FileStorage e_verification("output/verification/E_verification.xml", cv::FileStorage::WRITE);
+//cv::FileStorage f_verification("output/verification/F_verification.xml", cv::FileStorage::WRITE);
+//cv::FileStorage e_verification("output/verification/E_verification.xml", cv::FileStorage::WRITE);
 
 struct SURFDetector
 {
@@ -88,6 +85,18 @@ struct FirstColumnOnlyCmp
 };
 
 
+cv::String SplitFilename (const std::string& str)
+{
+  std::size_t found = str.find_last_of("/\\");
+  return str.substr(found+1);
+}
+
+cv::String RemoveFileExtension (const std::string& str)
+{
+  std::size_t lastindex = str.find_last_of(".");
+  return str.substr(0, lastindex);
+}
+
 static cv::Mat drawGoodMatches(
     const std::vector<cv::KeyPoint>& keypoints1,
     const std::vector<cv::KeyPoint>& keypoints2,
@@ -101,8 +110,8 @@ static cv::Mat drawGoodMatches(
 
     drawMatches( img1, keypoints1, img2, keypoints2,
                  good_matches, img_matches, cv::Scalar::all(-1), cv::Scalar::all(-1),
-                 std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS  );
-
+                 std::vector<char>(), cv::DrawMatchesFlags::DEFAULT  );
+    //return img_matches;
 
     //-- Localize the object
     std::vector<cv::Point2f> obj;
@@ -150,6 +159,7 @@ static cv::Mat drawGoodMatches(
     //obj_corners[1] = Point( cols, 0 );
     //obj_corners[2] = Point( cols, rows );
     //obj_corners[3] = Point( 0, rows );
+    //TODO: FIX
 
     cv::Mat H = findHomography( obj, scene, cv::RANSAC );
     perspectiveTransform( obj_corners, scene_corners, H);
@@ -226,7 +236,7 @@ cv::Mat findGoodMatches(
 
     std::vector<std::vector<cv::Point> > contours;
     std::vector<cv::Vec4i> hierarchy;
-    cv::Mat H, M; //The matrices to be returned
+    cv::Mat H;//, M; //The matrices to be returned
     if (obj.size() > 0)
     {
         //-- Get the corners from the image_1 ( the object to be "detected" )
@@ -279,7 +289,7 @@ cv::Mat findGoodMatches(
             //Mat drawing = Mat::zeros( img2.size(), img2.type() );
             //using searchImg since img2 is currently not available, and both are the same size.
             //later should be set to the region where the object surely is.
-            cv::Mat drawing = cv::Mat::zeros( X_RES, Y_RES, CV_8UC1);
+            cv::Mat drawing = cv::Mat::zeros( cols, rows, CV_8UC1);
 
             line( drawing,
                 scene_corners[0], scene_corners[1],
@@ -310,7 +320,9 @@ cv::Mat findGoodMatches(
                     }
                 }
             }
-
+        }
+    }
+/*
             if (selected_matches.size() >= 8)
             {
                 //-- Get the points corresponding to the selected matches
@@ -329,7 +341,6 @@ cv::Mat findGoodMatches(
                 std::vector<double> verifyValues;
                 for (int i = 0; i < selected_matches.size(); i++)
                 {
-                    /* code */
                 	cv::Mat queryMatrix(queryPoints[i]);
                 	cv::Mat refMatrix(refPoints[i]);
                     queryMatrix.convertTo(queryMatrix,cv::DataType<double>::type);
@@ -377,7 +388,6 @@ cv::Mat findGoodMatches(
                 verifyValues.clear();
                 for (int i = 0; i < selected_matches.size(); i++)
                 {
-                    /* code */
                 	cv::Mat queryMatrix(queryPoints[i]);
                 	cv::Mat refMatrix(refPoints[i]);
                     queryMatrix.convertTo(queryMatrix,cv::DataType<double>::type);
@@ -458,266 +468,17 @@ cv::Mat findGoodMatches(
                 return M;
             }
         }
-    }
+	}
 
-    f_verification << currImgText<< "No";
-    e_verification << currImgText<< "No";
+    //f_verification << currImgText<< "No";
+    //e_verification << currImgText<< "No";
+*/
     return H;
 }
 
 ////////////////////////////////////////////////////
 // This program demonstrates the usage of SURF_OCL.
 // use cpu findHomography interface to calculate the transformation matrix
-int Run(cv::UMat queryImg, cv::String db_location, cv::String dataset_location)
-{
-	const cv::String dataset_type = ".jpg"; //TODO: maybe set it as argument later
-    cv::UMat img1;
-    //std::cout << "Test = " <<testName<< std::endl;
-
-    //imread(backName, CV_LOAD_IMAGE_GRAYSCALE).copyTo(backImg);
-
-    //imread(queryName, CV_LOAD_IMAGE_GRAYSCALE).copyTo(queryImg);
-
-        //crop scrImg into img1
-    // Setup a rectangle to define your region of interest
-    int imgHeight = queryImg.size().height;
-    int imgWidth = queryImg.size().width;
-    //the following values should come from a region detection algorithm
-    int start_X = imgWidth/3;
-    int start_Y = imgHeight/4;
-    int width_X = imgWidth/3;
-    int width_Y = imgHeight/2;
-    cv::Rect myROI(start_X, start_Y, width_X, width_Y);
-
-    // Crop the full image to that image contained by the rectangle myROI
-    // Note that this doesn't copy the data
-    queryImg.copyTo(img1);
-    //resize(queryImg, img1, Size(640, 512), 0, 0, INTER_AREA);
-    //img1 = queryImg(myROI);
-
-
-    //declare input/output
-    std::vector<cv::KeyPoint> keypoints1, keypoints2;
-    std::vector< std::vector<cv::DMatch> > matches;
-    std::vector<cv::DMatch> backward_matches;
-
-    cv::UMat _descriptors1, _descriptors2;
-    cv::Mat descriptors1 = _descriptors1.getMat(cv::ACCESS_RW),
-        descriptors2 = _descriptors2.getMat(cv::ACCESS_RW);
-
-    //instantiate detectors/matchers
-    SURFDetector surf;
-    //SIFTDetector sift;
-
-    //SURFMatcher<BFMatcher> matcher;
-    cv::BFMatcher matcher;
-
-
-    surf(img1.getMat(cv::ACCESS_READ), cv::Mat(), keypoints1, descriptors1);
-    //sift(img1.getMat(ACCESS_READ), Mat(), keypoints1, descriptors1);
-
-    cv::String dscspath = db_location + "Desciptors.xml";
-    cv::String kptspath = db_location + "KeyPoints.xml";
-    cv::String idspath = db_location + "Mapping_IDs.xml";
-
-    cv::FileStorage dscs(dscspath, cv::FileStorage::READ);
-    cv::FileStorage kpts(kptspath, cv::FileStorage::READ);
-    cv::FileStorage ids(idspath, cv::FileStorage::READ);
-
-    //std::cout << "db_location:"<< std::endl<<dscspath << std::endl << kptspath << std::endl<<idspath<<std::endl;
-
-    //std::cout << "files_location: " << std::endl << dataset_location <<std::endl;
-
-    int matchesFound = 0;
-
-    std::vector< std::vector<cv::DMatch> > final_matches;
-
-    std::vector<cv::Mat> allMatrices;
-    std::vector< std::vector<int> > ranked_IDs;
-    int cols = img1.cols;
-    int rows = img1.rows;
-
-
-    //Fetching data for the first iteration
-    int index = 1;
-    cv::String curr_img;
-    cv::String indexValue = std::to_string(index);
-    cv::String filename = "node_" + indexValue;
-    ids[filename] >> curr_img;
-    kpts[filename] >> keypoints2;
-    dscs[filename] >> descriptors2;
-        //for (int i = 1; i <= 5400; i++)
-
-    //store the matrices in a file
-    cv::FileStorage matrices("output/Matrices.xml", cv::FileStorage::WRITE);
-
-
-    while (curr_img != "")
-    {
-        //load descriptors2
-        //surf(img2.getMat(ACCESS_READ), Mat(), keypoints2, descriptors2);
-
-        //std::cout << curr_img << " -> ";
-        //std::vector<DMatch> matches;
-        matcher.knnMatch(descriptors1, descriptors2, matches, 2);// Find two nearest matches
-        matcher.match(descriptors2, descriptors1, backward_matches);
-
-        std::vector<cv::DMatch> selected_matches;
-
-        allMatrices.push_back( findGoodMatches(cols, rows, keypoints1, keypoints2, matches, backward_matches, selected_matches,curr_img.c_str()) );
-
-        matrices << curr_img.c_str() << allMatrices.back();
-
-
-        final_matches.push_back(selected_matches);
-        matchesFound = selected_matches.size();
-
-        //do a data structure for holding IDs with rank, rank being the number found just above.
-        //push to this data structure
-        //after this loop, this data structure should be sorted in descending order, and the selected amount should be filtered from it (top 10 for example).
-        std::vector<int> currentItem;
-        currentItem.push_back(index);
-        currentItem.push_back(matchesFound); //rank
-        ranked_IDs.push_back(currentItem);
-
-        matches.clear();
-        backward_matches.clear();
-        selected_matches.clear();
-        keypoints2.clear();
-        descriptors2.release();
-
-
-        //Fetching data for the next iteration
-        index++;
-        curr_img = "";
-        cv::String indexValue = std::to_string(index);
-        cv::String filename = "node_" + indexValue;
-        ids[filename] >> curr_img;
-        kpts[filename] >> keypoints2;
-        dscs[filename] >> descriptors2;
-    }
-
-    //descriports and matrices are not needed anymore after this point
-    matrices.release();
-    dscs.release();
-    f_verification.release();
-    e_verification.release();
-
-
-
-    //start formating the output
-    std::cout << std::endl;
-    std::cout <<index - 1 << std::endl;
-
-    //-- Sort matches and preserve top 10% matches
-    //std::sort(matches.begin(), matches.end());
-    std::sort(ranked_IDs.begin(), ranked_IDs.end(), FirstColumnOnlyCmp());
-    int currID, currRank;
-    std::vector<cv::DMatch> currMatches;
-    cv::Mat currM;
-    cv::UMat img2;
-    cv::String input_file, output_file;
-    double currFitnessScore = 0.0;
-    for (int i = 0; i < GOOD_PORTION; i++)
-    {
-        currID = ranked_IDs[i][0];
-        currRank = ranked_IDs[i][1];
-        currMatches = final_matches[currID - 1];    //minus 1 because IDs start at 1 while index start at 0
-        currM = allMatrices[currID - 1];              //minus 1 because IDs start at 1 while index start at 0
-
-        cv::String idValue = std::to_string(currID);
-        cv::String filename = "node_" + idValue;
-        kpts[filename] >> keypoints2;
-        ids[filename] >> curr_img;
-        input_file = dataset_location + curr_img + dataset_type;
-        std::cout<<input_file<<std::endl;
-        imread(input_file, CV_LOAD_IMAGE_GRAYSCALE).copyTo(img2);//get corresponding image
-
-        cv::Mat H = cv::Mat(currM, cv::Rect(0,0,3,currM.rows));
-        cv::Mat F = cv::Mat(currM, cv::Rect(3,0,3,currM.rows));
-        cv::Mat E = cv::Mat(currM, cv::Rect(6,0,3,currM.rows));
-        cv::Mat R = cv::Mat(currM, cv::Rect(9,0,6,currM.rows));
-        cv::Mat T = cv::Mat(currM, cv::Rect(15,0,2,currM.rows));
-        currFitnessScore = (double)currMatches.size()/ (double)keypoints2.size();
-        std::cout << curr_img << " -> "<< currFitnessScore << std::endl
-        << "H = " << std::endl
-        <<  H << std::endl << std::endl
-        << "F = " << std::endl
-        <<  F << std::endl << std::endl
-        << "E = " << std::endl
-        <<  E << std::endl << std::endl
-        << "R = " << std::endl
-        <<  R << std::endl << std::endl
-        << "T = " << std::endl
-        <<  T << std::endl << std::endl;
-
-        //write image to disk
-        cv::Mat img_matches = drawGoodMatches(keypoints1, keypoints2, img1.getMat(cv::ACCESS_READ), img2.getMat(cv::ACCESS_READ), currMatches);
-        while(img_matches.empty()){};
-
-
-        //TODO: compute transform matrix and print
-
-        //maybe do this part here to penaltilize non horizontals in drawGoodMatches??
-        //currFitnessScore = (double)currMatches.size()/ (double)keypoints2.size();
-
-        currFitnessScore *= 100;
-        cv::String fitnessValue = std::to_string(currFitnessScore);
-        cv::String fitnessText = "Fitness: " + fitnessValue + '%';
-        putText(img_matches, fitnessText, cv::Point(5, img1.rows - 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
-        output_file = "output/" + curr_img + dataset_type;
-        imwrite(output_file, img_matches);
-    }
-
-    kpts.release();
-    ids.release();
-
-    std::vector<cv::Mat> oRvecs, oTvecs, oNvecs;
-    currID = ranked_IDs[0][0];
-    currRank = ranked_IDs[0][1];
-    currMatches = final_matches[currID - 1];    //minus 1 because IDs start at 1 while index start at 0
-    currM = allMatrices[currID - 1];              //minus 1 because IDs start at 1 while index start at 0
-    input_file = dataset_location + curr_img + dataset_type;
-    std::cout<<input_file<<std::endl;
-    imread(input_file, CV_LOAD_IMAGE_GRAYSCALE).copyTo(img2);//get corresponding image
-
-    //TODO: publish photo and block waiting for true or false, if true, continue, if false, get another image
-
-    cv::Mat H = cv::Mat(currM, cv::Rect(0,0,3,currM.rows));
-    cv::Mat CamMatrix = cv::Mat::eye(3, 3, CV_32F);
-    int imageCenterX = img2.cols/2;
-    int imageCenterY = img2.rows/2;
-
-    CamMatrix.at< float >(0, 0) = 500;
-    CamMatrix.at< float >(1, 1) = 500;
-    CamMatrix.at< float >(0, 2) = imageCenterX;
-    CamMatrix.at< float >(1, 2) = imageCenterY;
-
-    decomposeHomographyMat(H, CamMatrix, oRvecs, oTvecs, oNvecs);
-    tf::TransformBroadcaster * br;
-    br = new tf::TransformBroadcaster[oRvecs.size()];
-    ros::Rate r(10);
-    while(ros::ok()){
-    for (int  j = 0; j < oRvecs.size(); ++j)
-    {
-    	std::cout<<j + 1<<std::endl;
-    	std::cout<<oRvecs[j]<<std::endl<<std::endl;
-    	//the following lines are not guaranteed to be correct yet. Maybe an actual conversion is needed here.
-    	Eigen::Matrix3f m;
-    	cv2eigen(oRvecs[j], m);
-    	Eigen::Quaternionf q(m);
-    	cv::String tfStr = "rvec_frame" +std::to_string(j+1);
-    	tf::StampedTransform transform;
-    	tf::Quaternion t;
-    	tf::quaternionEigenToTF(Eigen::Quaterniond(q), t);
-    	//tf::()
-    	transform.setRotation(t);
-    	br[j].sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/kinect2_ir_optical_frame", tfStr));
-    }
-    r.sleep();
-    }
-    return EXIT_SUCCESS;
-}
 /*
 void imageCallback(const sensor_msgs::ImageConstPtr& msg)
 {
@@ -735,89 +496,324 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg)
 
 int main(int argc, char **argv)
 {
-	/*
-	const char* keys =
-		"{ h help     |                  | print help message  }"
-		"{ t test     | test.jpg          | specify left image  }"
-		"{ m cpu_mode |                  | run without OpenCL }";
 
-	CommandLineParser cmd(argc, argv, keys);
-	if (cmd.has("help"))
-	{
-		std::cout << "Usage: surf_matcher [options]" << std::endl;
-		std::cout << "Available options:" << std::endl;
-		cmd.printMessage();
-		return EXIT_SUCCESS;
-	}
-	if (cmd.has("cpu_mode"))
-	{
-		ocl::setUseOpenCL(false);
-		std::cout << "OpenCL was disabled" << std::endl;
-	}
-	*/
 	ros::init(argc, argv, "object_transormations");
 
-	cv::String queryName, db_location, dataset_location;
-	if (argc > 3)
-	{
+	cv::String query_location, test_location, cwd, output_location;//cwd is short for curring working directory
+	std::string inputParam;
+	ros::NodeHandle nh;
 
-		queryName = argv[1];
-		db_location = argv[2];
-		dataset_location = argv[3];
-		if (argc > 4)
-		{
-			printf("Too many arguments.\n\nPlease enter:\n\t1. The location of the query image\n\t2. The path of the db\n\t3. The location of the image files\n\n");
-			return 1;
-		}
-	}
-	else
+	while (!(nh.getParam("/visiobased_placement/cwd", inputParam)) && nh.ok())
+	{}
+	cwd = inputParam;
+	inputParam = "";
+
+	if (!(nh.getParam("/visiobased_placement/CACHED_QUERY_FILE_NAME", inputParam)))
 	{
-	  printf("Too few arguments.\n\nPlease enter:\n\t1. The location of the query image\n\t2. The path of the db\n\t3. The location of the image files\n\n");
-	  return 1;
+		printf("Failure with input parameter.\nProgram will exit with failure status.");
+		return EXIT_FAILURE;
 	}
 
-	if (queryName == "--sub")
+	query_location = inputParam;
+	inputParam = "";
+
+	if (!(nh.getParam("/visiobased_placement/UPRIGHT_PATH", inputParam)))
 	{
-		sensor_msgs::ImageConstPtr msg = ros::topic::waitForMessage<sensor_msgs::Image>("/input_image");
-
-		try
-		{
-			cv::Mat subImg = cv_bridge::toCvShare(msg, "bgr8")->image;
-			cv::UMat queryImg;
-			subImg.copyTo(queryImg);
-			return Run(queryImg, db_location, dataset_location);
-
-		}
-		catch (cv_bridge::Exception& e)
-		{
-			ROS_ERROR("Could not convert from '%s' to 'bgr8'.", msg->encoding.c_str());
-		}
+		printf("Failure with input parameter.\nProgram will exit with failure status.");
+		return EXIT_FAILURE;
 	}
-	else
+
+	test_location = inputParam;
+	inputParam = "";
+
+
+	if (!(nh.getParam("/visiobased_placement/ROTATION_PATH", inputParam)))
 	{
-		cv::UMat queryImg;
-		resize(imread(queryName, CV_LOAD_IMAGE_GRAYSCALE), queryImg, cv::Size(640, 512), 0, 0, cv::INTER_AREA);
+		printf("Failure with input parameter.\nProgram will exit with failure status.");
+		return EXIT_FAILURE;
+	}
+
+	output_location = inputParam;
+	//std::cout << cwd << std::endl;
+	//std::cout << query_location << std::endl;
+	//std::cout << test_location << std::endl;
+	//std::cout << output_location << std::endl;
+
+	//TODO: Get the following from the rosparam server
+	query_location = cwd + query_location;
+	test_location = cwd + test_location;
+	output_location = cwd + output_location;
+	const cv::String dataset_type = ".jpg"; //TODO: maybe set it from the params.yaml
+
+
+	cv::UMat queryImg;
+	queryImg = imread(query_location, CV_LOAD_IMAGE_GRAYSCALE).getUMat( cv::ACCESS_READ );
+	if(queryImg.empty())
+	{
+		std::cout << "Couldn't load " << query_location << std::endl;
+		//cmd.printMessage();
+		printf("Something went wrong loading query image.\nProgram will exit with failure status.");
+		return EXIT_FAILURE;
+	}
+
+	cv::UMat queryColorImg;
+	imread(query_location, CV_LOAD_IMAGE_COLOR).copyTo(queryColorImg);
+
+	//Prepare for main loop
+	std::vector<cv::String> filenames;
+	glob(test_location, filenames);
+
+	cv::UMat img1;
+	queryImg.copyTo(img1);
+
+	//declare input/output
+	std::vector<cv::KeyPoint> keypoints1, keypoints2;
+	std::vector< std::vector<cv::DMatch> > matches;
+	std::vector<cv::DMatch> backward_matches;
+
+	cv::UMat _descriptors1, _descriptors2;
+	cv::Mat descriptors1 = _descriptors1.getMat(cv::ACCESS_RW),
+			descriptors2 = _descriptors2.getMat(cv::ACCESS_RW);
+
+	//instantiate detectors/matchers
+	//SURFDetector surf;
+	SIFTDetector sift;
+
+	//SURFMatcher<BFMatcher> matcher;
+	cv::BFMatcher matcher;
+
+
+	//surf(img1.getMat(cv::ACCESS_READ), cv::Mat(), keypoints1, descriptors1);
+	sift(img1.getMat(cv::ACCESS_READ), cv::Mat(), keypoints1, descriptors1);
+
+	std::vector< std::vector<cv::DMatch> > final_matches;
+
+	//std::vector<cv::Mat> allMatrices;
+
+	//store the matrices in a file
+	//cv::FileStorage matrices("output/Matrices.xml", cv::FileStorage::WRITE);
+
+	int maxMatches = 0;
+	int matchesFound = 0;
+	cv::Mat currM;
+
+	//Best result data
+	int numOfMatches = 0;
+	cv::String bestFileName;
+	cv::Mat bestM;
+	std::vector<cv::DMatch> bestMatches;
+	int bestKeypointsNum = 0;
+	int bestImageCenterX = 0;
+	int bestImageCenterY = 0;
+	cv::Mat H;
+
+	for (size_t i=0; i< filenames.size(); i++)
+	{
+
+		cv::UMat img2;
+		cv::UMat testImg;
+		testImg = imread(filenames[i], CV_LOAD_IMAGE_GRAYSCALE).getUMat( cv::ACCESS_READ );
 		if(queryImg.empty())
 		{
-			std::cout << "Couldn't load " << queryName << std::endl;
+			std::cout << "Couldn't load " << test_location << std::endl;
 			//cmd.printMessage();
-			printf("Wrong input arguments.\n\nPlease enter:\n\t1. The location of the background image\n\t2. The location of the query image\n\t2. The path of the db\n\t3. The location of the image files\n\n");
-			return EXIT_FAILURE;
+			printf("Something went wrong loading %s.\nSkipping over it.", filenames[i].c_str());
+			continue;
+			//return EXIT_FAILURE;
 		}
-		return Run(queryImg, db_location, dataset_location);
+		testImg.copyTo(img2);
 
+		//load descriptors2
+		//surf(img2.getMat(ACCESS_READ), Mat(), keypoints2, descriptors2);
+		sift(img2.getMat(cv::ACCESS_READ), cv::Mat(), keypoints2, descriptors2);
+
+		//drawKeypoints( img_1, keypoints_1, img_keypoints_1, Scalar::all(-1), DrawMatchesFlags::DEFAULT );
+
+
+		matcher.knnMatch(descriptors1, descriptors2, matches, 2);// Find two nearest matches
+		matcher.match(descriptors2, descriptors1, backward_matches);
+
+		std::vector<cv::DMatch> selected_matches;
+
+		int cols = img2.cols;
+		int rows = img2.rows;
+		currM = findGoodMatches(cols, rows, keypoints1, keypoints2, matches, backward_matches, selected_matches,filenames[i].c_str());
+
+		std::vector<cv::DMatch> good_matches;
+		for( int i = 0; i < matches.size(); i++ )
+		{
+			if (matches[i][0].distance < ratio_Lowe * matches[i][1].distance)
+			{
+				cv::DMatch forward = matches[i][0];
+				cv::DMatch backward = backward_matches[forward.trainIdx];
+				if(backward.trainIdx == forward.queryIdx)
+				{
+					good_matches.push_back(forward);
+				}
+
+			}
+			//good_matches.push_back( matches[i][0] );
+			//good_matches.push_back( matches[i] );
+		}
+
+
+		cv::UMat colorImg;
+		imread(filenames[i], CV_LOAD_IMAGE_COLOR).copyTo(colorImg);//get corresponding image
+
+		cv::Mat img_matches;
+		img_matches = drawGoodMatches(keypoints1, keypoints2, queryColorImg.getMat(cv::ACCESS_READ), colorImg.getMat(cv::ACCESS_READ), good_matches);
+		cv::String outFile = output_location + "/" + RemoveFileExtension(SplitFilename(filenames[i])) + dataset_type;
+		imwrite(outFile, img_matches);
+		//allMatrices.push_back(currM);
+		//std::cout<< "Matches Found:" <<good_matches.size() << std::endl<< std::endl;
+		//matrices << filenames[i].c_str() << allMatrices.back();
+
+
+		final_matches.push_back(selected_matches);
+		matchesFound = selected_matches.size();
+
+
+		if (matchesFound > maxMatches)
+		{
+			maxMatches = matchesFound;
+			bestFileName = filenames[i];
+			H = currM;
+			bestKeypointsNum = keypoints2.size(); //This is the number of keypoints found on our best result image.
+			bestMatches = good_matches;
+			bestImageCenterX = img2.cols/2;
+			bestImageCenterY = img2.rows/2;
+		}
+
+		matches.clear();
+		backward_matches.clear();
+		selected_matches.clear();
+		keypoints2.clear();
+		descriptors2.release();
 	}
 
 
+	//descriports and matrices are not needed anymore after this point
+	//matrices.release();
+	//f_verification.release();
+	//e_verification.release();
 
-	/*
-	ros::init(argc, argv, "image_listener");
-	ros::NodeHandle nh;
-	cv::namedWindow("view");
-	cv::startWindowThread();
-	image_transport::ImageTransport it(nh);
-	image_transport::Subscriber sub = it.subscribe("camera/image", 1, imageCallback);
-	ros::spin();
-	cv::destroyWindow("view");
-  */
+	double currFitnessScore = 0.0;
+	currFitnessScore = (double)maxMatches/ (double)bestKeypointsNum;
+	std::cout <<"Image:\t"<<bestFileName<< "\nScore:\t"<< currFitnessScore << std::endl;
+
+	//cv::Mat H = cv::Mat(currM, cv::Rect(0,0,3,currM.rows));
+	//cv::Mat F = cv::Mat(currM, cv::Rect(3,0,3,currM.rows));
+	//cv::Mat E = cv::Mat(currM, cv::Rect(6,0,3,currM.rows));
+	//cv::Mat R = cv::Mat(currM, cv::Rect(9,0,6,currM.rows));
+	//cv::Mat T = cv::Mat(currM, cv::Rect(15,0,2,currM.rows));
+
+	//compute transform matrix then print
+	std::vector<cv::Mat> oRvecs, oTvecs, oNvecs;
+
+	cv::Mat CamMatrix = cv::Mat::eye(3, 3, CV_32F);
+
+	//TODO: Set these from the params.yaml
+	CamMatrix.at< float >(0, 0) = 500;
+	CamMatrix.at< float >(1, 1) = 500;
+	CamMatrix.at< float >(0, 2) = bestImageCenterX;
+	CamMatrix.at< float >(1, 2) = bestImageCenterY;
+
+	decomposeHomographyMat(H, CamMatrix, oRvecs, oTvecs, oNvecs);
+
+	std::cout <<"Rotation matrices acquired:" << std::endl;
+	double diff = 1;
+	int selectedR = -1;//this is to force an error if no one was chosen
+	for (int  j = 0; j < oRvecs.size(); ++j)
+	{
+			std::cout <<oRvecs[j]<< std::endl;
+			//TODO: Remove the next line after testing
+			std::cout <<oRvecs[j].at<double>(2,2)<< std::endl;
+			double newDiff = 1 - oRvecs[j].at<double>(2,2);
+			if (newDiff < diff)
+			{
+				diff = newDiff;
+				selectedR = j;
+			}
+	}
+
+	std::cout <<"Rotation matrix chosen:" << std::endl;
+	std::cout <<oRvecs[selectedR]<< std::endl;
+
+
+	std::cout <<"Orienting position..." << std::endl;
+
+	//TODO: Fix with Daniel
+	//MoveItController *m_armController;
+	//m_armController = new MoveItController("iiwa", SCHUNK_HAND);
+	//m_armController->init(nh);
+	//m_armController->closeGripper();
+
+	//controller->init(nh);
+	//Eigen::Vector3f currPos = controller->getCurrentPosition();
+	Eigen::Matrix3f orientation;
+	cv2eigen(oRvecs[selectedR], orientation);
+
+	//controller->goToPosition(currPos, orientation);
+
+	std::cout <<"Publishing transform..." << std::endl;
+	tf::TransformBroadcaster * br;
+	br = new tf::TransformBroadcaster;
+	ros::Rate r(10);
+	while(ros::ok()){
+
+		Eigen::Quaternionf q(orientation);
+		cv::String tfStr = "rvec_frame";
+		tf::StampedTransform transform;
+		tf::Quaternion t;
+		tf::quaternionEigenToTF(Eigen::Quaterniond(q), t);
+		//tf::()
+		transform.setRotation(t);
+		br->sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/kinect2_ir_optical_frame", tfStr));
+
+		/*
+		for (int  j = 0; j < oRvecs.size(); ++j)
+		{
+			//std::cout<<j + 1<<std::endl;
+			//std::cout<<oRvecs[j]<<std::endl<<std::endl;
+			//the following lines are not guaranteed to be correct yet. Maybe an actual conversion is needed here.
+			Eigen::Matrix3f m;
+			cv2eigen(oRvecs[j], m);
+			Eigen::Quaternionf q(m);
+			cv::String tfStr = "rvec_frame" +std::to_string(j+1);
+			tf::StampedTransform transform;
+			tf::Quaternion t;
+			tf::quaternionEigenToTF(Eigen::Quaterniond(q), t);
+			//tf::()
+			transform.setRotation(t);
+			br[j].sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/kinect2_ir_optical_frame", tfStr));
+		}
+		*/
+		r.sleep();
+	}
+
+	//writing to standard output part
+	/*std::cout << bestFileName << " -> "<< currFitnessScore << std::endl
+			<< "H = " << std::endl
+			<<  H << std::endl << std::endl
+			<< "F = " << std::endl
+			<<  F << std::endl << std::endl
+			<< "E = " << std::endl
+			<<  E << std::endl << std::endl
+			<< "R = " << std::endl
+			<<  R << std::endl << std::endl
+			<< "T = " << std::endl
+			<<  T << std::endl << std::endl;
+	 */
+	//write image to disk
+	//cv::Mat img_matches = drawGoodMatches(keypoints1, keypoints2, queryColorImg.getMat(cv::ACCESS_READ), bestImg.getMat(cv::ACCESS_READ), bestMatches);
+	//while(img_matches.empty()){};
+
+	//currFitnessScore *= 100;
+	//cv::String fitnessValue = "Fitness: " + std::to_string(currFitnessScore) + '%';
+	//putText(img_matches, fitnessValue, cv::Point(5, img1.rows - 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+	//cv::String output_file = cwd + "output/" + bestFileName + dataset_type;
+	//imwrite(output_file, img_matches);
+
+
+	return EXIT_SUCCESS;
 }

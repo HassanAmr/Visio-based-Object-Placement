@@ -50,7 +50,6 @@ import rospy
 import errno
 import csv
 from os import listdir
-from os import makedirs
 from os.path import join
 from os.path import basename
 from shutil import copyfile
@@ -104,14 +103,6 @@ def run_graph(image_data, labels, input_layer_name, output_layer_name,
 
 def classify(labels_path, graph_path, in_dir, out_dir, log_dir):
   """Runs inference on an image."""
-
-  try:
-    makedirs(out_dir)
-  except OSError, e:
-    if e.errno != errno.EEXIST:
-      raise  # This was not a "directory exist" error..:
-    pass
-
   # load image
 
   # load labels

@@ -11,19 +11,12 @@ from os.path import join
 from os.path import basename
 
 
-def find_rotation_matrix(query_path, in_dir, out_dir, log_dir):
-
-
-    try:
-        makedirs(out_dir)
-    except OSError, e:
-        if e.errno != errno.EEXIST:
-            raise  # This was not a "directory exist" error..
-        pass
+def find_rotation_matrix(query_image, in_dir, out_dir, log_dir):
 
     MIN_MATCH_COUNT = 10
 
-    img1 = cv2.imread(query_path,0)          # queryImage
+    #img1 = cv2.imread(query_path,0)          # queryImage
+    img1 = cv2.cvtColor(query_image, cv2.COLOR_BGR2GRAY)
 
     data_dir_test = in_dir
     datalist_test = [join(data_dir_test, f) for f in listdir(data_dir_test)]
@@ -82,7 +75,7 @@ def find_rotation_matrix(query_path, in_dir, out_dir, log_dir):
                            matchesMask = matchesMask, # draw only inliers
                            flags = 2)
 
-        img3 = cv2.drawMatches(cv2.imread(query_path),kp1,img2,kp2,good,None,**draw_params)
+        img3 = cv2.drawMatches(query_image,kp1,img2,kp2,good,None,**draw_params)
 
         cv2.imwrite(out_dir + "/" + basename(j),img3)
     

@@ -20,7 +20,6 @@ import numpy as np
 import scipy.spatial.distance
 import errno
 from os import listdir
-from os import makedirs
 from os.path import join
 from os.path import basename
 from shutil import copyfile
@@ -360,12 +359,6 @@ def retrieve_nsmallest_dist(query_image, test_dir, out_dir, n, dist_type, log_di
         # Add to dictionary
         img_dict[curr_dist] = str(j)
 
-    try:
-        makedirs(out_dir)
-    except OSError, e:
-        if e.errno != errno.EEXIST:
-            raise  # This was not a "directory exist" error..
-        pass
     fp = open(log_dir+"/"+ "retrieval_log.csv", 'w')
     fp.truncate()
     fpWriter = csv.writer(fp, delimiter='\t')

@@ -110,11 +110,10 @@ def download(search_keyword, keywords, destination_dir, download_limit, log_dir)
 
          #make a search keyword  directory
         try:
-            os.makedirs(destination_dir)
+            os.makedirs(destination_dir + "/" + search_keywords)
         except OSError, e:
-            if e.errno != errno.EEXIST:
-                raise  # This was not a "directory exist" error..
-            # time.sleep might help here
+            if e.errno != 17:
+                raise   
             pass
         
         j = 0
@@ -157,9 +156,9 @@ def download(search_keyword, keywords, destination_dir, download_limit, log_dir)
 
                 data = response.read()
                 if data[1:4] == "PNG":
-                    output_file = open(destination_dir+"/"+search_keyword_file_name+"_"+str(k+1)+".png",'wb')
+                    output_file = open(destination_dir + "/" + search_keywords +"/"+search_keyword_file_name+"_"+str(k+1)+".png",'wb')
                 else:
-                    output_file = open(destination_dir+"/"+search_keyword_file_name+"_"+str(k+1)+".jpg",'wb')
+                    output_file = open(destination_dir + "/" + search_keywords +"/"+search_keyword_file_name+"_"+str(k+1)+".jpg",'wb')
 
                 output_file.write(data)
                 response.close();

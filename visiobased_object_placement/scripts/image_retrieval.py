@@ -279,28 +279,31 @@ class vgg16:
         denominator = square_rooted(x)*square_rooted(y)
         return round(numerator/float(denominator),3)
 
-def retrieve_nsmallest_dist(query_image, test_dir, out_dir, n, dist_type, log_dir, vgg, sess):
+def retrieve_nsmallest_dist(query_image, test_dirs, out_dir, n, dist_type, weights_path, log_dir):
     """This function will compare a query image against all images provided in the test_dir, and save/log the smallest n images to the out_dir
 
     Args:
-        query_image (np.darray):    Query image
-        test_dir (str):             Location of the test images
-        out_dir (str):              Location to the save the retrieved images
-        n (int):                    Number of images to retrieve
-        dist_type (str):            The distance algorithm (euc, cos, chev)
-        log_path (str):             Path of the logs directory to save the logs in
-        vgg (class vgg16):          Object of the vgg16 class
-        sess(tf Session):           Object of the tensorflow session
+        query_path (str):   Query image object
+        test_dirs (str):    List of directories containing the test images
+        out_dir (str):      Location to the save the retrieved images
+        n (int):            Number of images to retrieve
+        dist_type (str):    The distance algorithm (euc, cos, chev)
+        weights_path (str): CNN weights path
+        log_path (str):     Path of the logs directory to save the logs in
 
     """
+
+
+    # Setup Session
+    sess = tf.Session()
+    imgs = tf.placeholder(tf.float32, [None, 224, 224, 3])
+    vgg = vgg16(imgs, weights_path, sess)
     # Get number of images to match (default 4)
     #dist_type = raw_input("Enter distance algorithm (euc, cos, chev): \n") or "euc"
     #print("distance type selected: " + dist_type)
     #dist_type="euc"
 
-    # Set dataset directory path
-    data_dir_test = test_dir
-    datalist_test = [join(data_dir_test, f) for f in listdir(data_dir_test)]
+    
 
     ####################
     ###Perform Search###
@@ -326,38 +329,44 @@ def retrieve_nsmallest_dist(query_image, test_dir, out_dir, n, dist_type, log_di
     # Convert tensor variable into numpy array
     # It is 4096 dimension vector
     feature_query = np.array(_feature_query)
+    print (test_dirs)
+    for test_dir in test_dirs:
+        print (test_dir)
+        # Set dataset directory path
+        data_dir_test = test_dir
+        datalist_test = [join(data_dir_test, f) for f in listdir(data_dir_test)]
 
-    # Retrieve feature vector for test image
-    for j in datalist_test:
-        try:
-            img_test = imread(j)
-        except:
-            continue
-        img_test = cv2.cvtColor(img_test, cv2.COLOR_BGRA2BGR)
-        img_test = imresize(img_test, (224, 224))
+        # Retrieve feature vector for test image
+        for j in datalist_test:
+            try:
+                img_test = imread(j)
+            except:
+                continue
+            img_test = cv2.cvtColor(img_test, cv2.COLOR_BGRA2BGR)
+            img_test = imresize(img_test, (224, 224))
 
-        # Extract image descriptor in layer fc2/Relu. If you want, change fc2 to fc1
-        layer_test = sess.graph.get_tensor_by_name('fc2/Relu:0')
-        # layer_test = sess.graph.get_tensor_by_name('fc1/Relu:0')
-        # Run the session for feature extract at 'fc2/Relu' layer
-        _feature_test = sess.run(layer_test, feed_dict={vgg.imgs: [img_test]})
-        # Convert tensor variable into numpy array
-        # It is 4096 dimension vector
-        feature_test = np.array(_feature_test)
-        feat_dict[j] = feature_test
+            # Extract image descriptor in layer fc2/Relu. If you want, change fc2 to fc1
+            layer_test = sess.graph.get_tensor_by_name('fc2/Relu:0')
+            # layer_test = sess.graph.get_tensor_by_name('fc1/Relu:0')
+            # Run the session for feature extract at 'fc2/Relu' layer
+            _feature_test = sess.run(layer_test, feed_dict={vgg.imgs: [img_test]})
+            # Convert tensor variable into numpy array
+            # It is 4096 dimension vector
+            feature_test = np.array(_feature_test)
+            feat_dict[j] = feature_test
 
-        # Calculate Euclidean distance between two feature vectors
-        if dist_type == "euc":
-            curr_dist = scipy.spatial.distance.euclidean(feature_query, feature_test)
-        # Calculate Cosine distance between two feature vectors
-        if dist_type == "cos":
-            curr_dist = scipy.spatial.distance.cosine(feature_query, feature_test)
-        # Calculate Chevyshev distance between two feature vectors
-        if dist_type == "chev":
-            curr_dist = scipy.spatial.distance.chebyshev(feature_query, feature_test)
+            # Calculate Euclidean distance between two feature vectors
+            if dist_type == "euc":
+                curr_dist = scipy.spatial.distance.euclidean(feature_query, feature_test)
+            # Calculate Cosine distance between two feature vectors
+            if dist_type == "cos":
+                curr_dist = scipy.spatial.distance.cosine(feature_query, feature_test)
+            # Calculate Chevyshev distance between two feature vectors
+            if dist_type == "chev":
+                curr_dist = scipy.spatial.distance.chebyshev(feature_query, feature_test)
 
-        # Add to dictionary
-        img_dict[curr_dist] = str(j)
+            # Add to dictionary
+            img_dict[curr_dist] = str(j)
 
     fp = open(log_dir+"/"+ "retrieval_log.csv", 'w')
     fp.truncate()
@@ -374,13 +383,13 @@ def retrieve_nsmallest_dist(query_image, test_dir, out_dir, n, dist_type, log_di
 
     t1 = time.time()
     total = t1-t0
-    print("\nTime taken: " + str(total))
+    #print("\nTime taken: " + str(total))
     #fpWriter.writerow([])
     #fp.write("\n\nTime taken: " + str(total) + "\n")
     fp.close()
 
 
-def retrieve_dist(query_image, test_path, dist_type, vgg, sess):
+def retrieve_dist(query_image, test_path, dist_type, weights_path):
     """This function will compare a query image against all images provided in the test_dir, and save/log the smallest n images to the out_dir
 
     Args:
@@ -391,6 +400,11 @@ def retrieve_dist(query_image, test_path, dist_type, vgg, sess):
         sess(tf Session):           Object of the tensorflow session
 
     """
+
+    # Setup Session
+    sess = tf.Session()
+    imgs = tf.placeholder(tf.float32, [None, 224, 224, 3])
+    vgg = vgg16(imgs, weights_path, sess)
     # Get number of images to match (default 4)
     #dist_type = raw_input("Enter distance algorithm (euc, cos, chev): \n") or "euc"
     #print("distance type selected: " + dist_type)

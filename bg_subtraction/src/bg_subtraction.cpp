@@ -46,7 +46,7 @@ void callback(const PointCloud::ConstPtr& msg, const sensor_msgs::Image::ConstPt
 
   tf::StampedTransform transform;
   try{
-    listener->lookupTransform("/kinect2_ir_optical_frame", "/iiwa_flange_link", ros::Time(0), transform);
+    listener->lookupTransform("/kinect2_ir_optical_frame", "/iiwa/iiwa_flange_link", ros::Time(0), transform);
     
     Eigen::Affine3d tranMat;
     tf::transformTFToEigen (transform, tranMat);

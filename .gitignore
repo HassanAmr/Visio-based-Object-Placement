@@ -3,4 +3,5 @@ image_publisher/
 depth_raw_to_image/
 iai_kinect2/
 visiobased_object_placement/scripts/*.pyc
+prm_planner/
 

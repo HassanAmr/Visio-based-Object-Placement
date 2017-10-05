@@ -4,14 +4,18 @@
 		<arg name="publish_tf" default="true" />
 	</include>
 
-	<!-- otherwise we use iiwa -->
-	<include file="$(find kuka_manager)/launch/iiwa_manager.launch" />
-	<!--include file="$(find kuka_manager)/launch/moveit_iiwa_sdh2.launch"/-->
-	<!--include file="$(find sdh2_hand)/launch/sdh2_hand_iiwa.launch" /-->
+	<group ns="iiwa">
+		<include file="$(find kuka_manager)/launch/iiwa_manager.launch" />
+		<!--include file="$(find kuka_manager)/launch/moveit_iiwa_sdh2.launch"/-->
+		<include file="$(find sdh2_hand)/launch/sdh2_hand_iiwa.launch" />
 
-	<param name="robot_description" textfile="$(find iiwa_description)/urdf/iiwa.urdf" />
-	<node name="iiwa_robot_state_publisher" pkg="robot_state_publisher" type="state_publisher" />
-
+		<param name="robot_description" textfile="$(find iiwa_description)/urdf/iiwa_sdh2.urdf" />
+		<param name="collision_matrix" type="string" value="$(find iiwa_description)/collision_matrices/iiwa_sdh2.cm" />
+		<node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" respawn="true" output="screen">
+			<param name="tf_prefix" type="string" value="iiwa" />
+		</node>
+	</group>
+	
 	<node pkg="rviz" type="rviz" name="rviz" args="-d $(find visiobased_object_placement)/rviz/iiwa_table_TF.rviz" />
 
 	<node pkg="bg_subtraction" type="bg_subtraction" name="bg_subtraction" required="true" />
@@ -20,8 +24,18 @@
 	
 	<node name="camera_tf_broadcaster_table_camera_to_iiwa" pkg="lbr_camera_calibration" type="camera_tf_broadcaster">
 		<param name="from_link" value="/kinect2_link" />
-		<param name="to_link" value="/iiwa_base_link" />
+		<param name="to_link" value="/iiwa/iiwa_base_link" />
 		<!--The following line is only needed if you have a calibration file in custom location -->
 		<param name="calibration_file" value="$(find iiwa_calibration)/calibration_files/table_camera_to_iiwa.mat" />
 	</node>
+
+	<group ns="/prm_planner">
+		<rosparam command="load" file="$(find visiobased_object_placement)/config/params.yaml" />
+		<rosparam command="load" ns="problem_definitions" file="$(find visiobased_object_placement)/config/problems.yaml" />
+		<rosparam command="load" ns="robots" file="$(find visiobased_object_placement)/config/robots.yaml" />
+
+		<!-- Setting paramters for fake execution -->
+
+		<node name="prm_planner" pkg="prm_planner" type="prm_planner" output="screen" />
+	</group>
 </launch>

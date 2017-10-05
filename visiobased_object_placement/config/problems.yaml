@@ -1,0 +1,21 @@
+names:
+- single_arm_iiwa
+problems:
+    single_arm_iiwa:
+        robot: iiwa
+        root_frame: /iiwa/iiwa_base_link
+        plugin_package: prm_planner
+        plugin_class: prm_planner::SingleArmProblemDefinition
+        planning:
+            planner_type: prm_a_star
+            planning_frame: /iiwa/iiwa_0_link
+            constraint: xyzrpy
+            prm: 
+                filename: /home/hassan/tmp/pd_iiwa.prm
+                save: true
+                size: 7000
+                visibility_distance: 0.3
+                min_height: 0.0
+        dropping:
+            search_radius: 1.0
+

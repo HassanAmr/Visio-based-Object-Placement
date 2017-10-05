@@ -56,21 +56,15 @@ def image_callback(msg):
     user_search_keyword_path = rospy.get_param("/visiobased_placement/user_search_keyword")
     #search_keyword = rospy.get_param("/visiobased_placement/search_keyword") #TODO: This should be removed once API is online
     
-    t0_cache = time.time()
-
+    #t0_cache = time.time()
+    t0 = time.time()
+    
     #Set api flag according to params
     if user_search_keyword_path is not "":
         run_cloud_api_step = False
     else:
         run_cloud_api_step = True
 
-    if run_cloud_api_step is False:
-        search_keyword = []
-        f = open(user_search_keyword_path, 'rb')
-        reader = csv.reader(f)
-        for row in reader:
-            search_keyword.append(row[0])
-        print(search_keyword)
     
     try:
         os.makedirs(SEARCH_DESINATION_DIR)
@@ -83,23 +77,6 @@ def image_callback(msg):
     cached_search_dir = cwd + "/" + SEARCH_DESINATION_DIR
     dirs_list = [ x for x in os.listdir(cached_search_dir) if os.path.isdir(cached_search_dir + "/" + x) ]
     #dirs_list = [ x for x in os.listdir(cached_search_dir)]
-
-    run_reduced_download_step = False
-    if force_download:
-        run_image_download_step = True
-    else:
-        print("Cached Web Search:")
-        print(dirs_list)
-        #we still want to save search_keyword to write it to disk at the end, so we will copy what is not cached to a new list
-        search_keyword_checklist = [x for x in search_keyword if x not in dirs_list]
-        print("Reduced keywords:")
-        print(search_keyword_checklist)
-
-        if not search_keyword_checklist:
-            run_image_download_step = False
-        else:
-            run_image_download_step = True
-            run_reduced_download_step = True
 
     curr_dir_session = datetime.datetime.now().strftime('%d%m%Y%H%M%S')
     try:
@@ -122,7 +99,6 @@ def image_callback(msg):
         if e.errno != errno.EEXIST:
             raise  # This was not a "directory exist" error..
         pass
-    
 
     fp = open(LOG_PATH+"/main_log.csv", 'w')
     #ch = open(curr_dir_session+"/"+ "checklist.csv", 'ab')
@@ -132,11 +108,11 @@ def image_callback(msg):
     #chWriter = csv.writer(ch, delimiter='\t')
     fpWriter.writerow(["Date/Time", "Step", "Duration(s)"])
     
-    t0 = time.time()
-    cache_time = t0-t0_cache
-    fpWriter.writerow([time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()), "Cache checking", str(cache_time)])
+    #t0 = time.time()
+    #cache_time = t0-t0_cache
+    #fpWriter.writerow([time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()), "Cache checking", str(cache_time)])
 
-
+    ###Begin###
     #Begin pipeline
 
     try:
@@ -150,9 +126,22 @@ def image_callback(msg):
     #cv2.imwrite("query_image.jpg", cv_query_image)
     QUERY_IMG = np.asarray( cv2.cvtColor(cv_query_image[:,:], cv2.COLOR_BGR2RGB) )
 
+
     #Cloud API step
+
+    if run_cloud_api_step is False:
+        search_keyword = []
+        f = open(user_search_keyword_path, 'rb')
+        reader = csv.reader(f)
+        for row in reader:
+            search_keyword.append(row[0])
+        print(search_keyword)
+
+
+
     if run_cloud_api_step:
         print("CLOUD API!")
+        t0_step = time.time()
 
         image_from_numpy = Image.fromarray(QUERY_IMG)
         imageBuffer = io.BytesIO()
@@ -162,8 +151,31 @@ def image_callback(msg):
 
         web_results = detect_image.report(detect_image.detect_web(imageBuffer))
         search_keyword = web_results[:4] #get only highest 4 results
+        t1_step = time.time()
+        step_time = t1_step-t0_step
+        print("\nCloud API: " + str(step_time))
+        fpWriter.writerow([time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime()), "Image download", str(step_time)])
         print (search_keyword)
 
+
+
+    #Check if the next step should be done completely or not
+    run_reduced_download_step = False
+    if force_download:
+        run_image_download_step = True
+    else:
+        print("Cached Web Search:")
+        print(dirs_list)
+        #we still want to save search_keyword to write it to disk at the end, so we will copy what is not cached to a new list
+        search_keyword_checklist = [x for x in search_keyword if x not in dirs_list]
+        print("Reduced keywords:")
+        print(search_keyword_checklist)
+
+        if not search_keyword_checklist:
+            run_image_download_step = False
+        else:
+            run_image_download_step = True
+            run_reduced_download_step = True
 
     #Image Download Step
     if run_image_download_step:

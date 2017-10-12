@@ -46,7 +46,7 @@ void callback(const PointCloud::ConstPtr& msg, const sensor_msgs::Image::ConstPt
 
   tf::StampedTransform transform;
   try{
-    listener->lookupTransform("/kinect2_ir_optical_frame", "/iiwa/iiwa_flange_link", ros::Time(0), transform);
+    listener->lookupTransform("/kinect2_ir_optical_frame", "iiwa/sdh2_palm_link", ros::Time(0), transform);
     
     Eigen::Affine3d tranMat;
     tf::transformTFToEigen (transform, tranMat);
@@ -106,7 +106,7 @@ void callback(const PointCloud::ConstPtr& msg, const sensor_msgs::Image::ConstPt
 
     //cv_bridge::CvImagePtr
     cv::Mat image(1080, 1920, CV_8UC3, cv::Scalar(0, 0, 0));
-    cv::Mat image_rgb(1080, 1920, CV_8UC3, cv::Scalar(0, 0, 0));
+    cv::Mat image_rgb(1080, 1920, CV_8UC3, cv::Scalar(255, 255, 255));
 
 
     cv::Vec3b intensity, rgb_intensity;
@@ -160,7 +160,7 @@ void callback(const PointCloud::ConstPtr& msg, const sensor_msgs::Image::ConstPt
     imageMsg.header.frame_id = msg->header.frame_id;
     imageMsg.header.stamp = ros::Time::now();
     imageMsg.encoding = "bgr8"; // Or whatever
-    imageMsg.image    = image; // Your cv::Mat
+    imageMsg.image    = image_rgb; // Your cv::Mat
     //sensor_msgs::ImagePtr imageMsg = cv_bridge::CvImage(, , image).toImageMsg();
     imagePub.publish(imageMsg.toImageMsg());
     

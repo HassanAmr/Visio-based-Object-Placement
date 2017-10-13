@@ -84,7 +84,9 @@ def image_callback(msg):
     try:
         os.makedirs(curr_dir_session)
     except OSError, e:
-        raise  # Here we raise even when folder exists because it should not exist.
+        if e.errno != errno.EEXIST:
+            raise  # This was not a "directory exist" error..
+        pass
 
     #cv2.imwrite(curr_dir_session + "/scene_image.jpg", scene_image)
 

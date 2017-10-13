@@ -54,7 +54,7 @@ def image_callback(msg):
     keywords = rospy.get_param("/visiobased_placement/keywords")
     force_download = rospy.get_param("/visiobased_placement/force_download")
     user_search_keyword_path = rospy.get_param("/visiobased_placement/user_search_keyword")
-    folder_name = rospy.get_param("/visiobased_placement/Listerine_1") 
+    folder_name = rospy.get_param("/visiobased_placement/folder_name") 
     #search_keyword = rospy.get_param("/visiobased_placement/search_keyword") #TODO: This should be removed once API is online
     
     #t0_cache = time.time()

@@ -811,6 +811,11 @@ int main(int argc, char **argv)
 
 	int64 t0_total = cv::getTickCount();
 	double time_lost = 0;//this will be the accumulation of time spent drawing, debugging, and writing to disk.
+	if (filenames.size() < 1)
+	{
+		ROS_WARN("No files processed.\nWaiting for user to terminate.");
+		while (1){}
+	}
 	for (size_t i=0; i< filenames.size(); i++)
 	{
 

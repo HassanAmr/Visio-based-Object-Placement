@@ -54,6 +54,7 @@ def image_callback(msg):
     keywords = rospy.get_param("/visiobased_placement/keywords")
     force_download = rospy.get_param("/visiobased_placement/force_download")
     user_search_keyword_path = rospy.get_param("/visiobased_placement/user_search_keyword")
+    folder_name = rospy.get_param("/visiobased_placement/Listerine_1") 
     #search_keyword = rospy.get_param("/visiobased_placement/search_keyword") #TODO: This should be removed once API is online
     
     #t0_cache = time.time()
@@ -78,7 +79,8 @@ def image_callback(msg):
     dirs_list = [ x for x in os.listdir(cached_search_dir) if os.path.isdir(cached_search_dir + "/" + x) ]
     #dirs_list = [ x for x in os.listdir(cached_search_dir)]
 
-    curr_dir_session = datetime.datetime.now().strftime('%d%m%Y%H%M%S')
+    #curr_dir_session = datetime.datetime.now().strftime('%d%m%Y%H%M%S')
+    curr_dir_session = folder_name
     try:
         os.makedirs(curr_dir_session)
     except OSError, e:
@@ -150,7 +152,7 @@ def image_callback(msg):
 
 
         web_results = detect_image.report(detect_image.detect_web(imageBuffer))
-        search_keyword = web_results[:4] #get only highest 4 results
+        search_keyword = web_results#[:4] #get only highest 4 results
         t1_step = time.time()
         step_time = t1_step-t0_step
         print("\nCloud API: " + str(step_time))
@@ -196,7 +198,8 @@ def image_callback(msg):
     #The following is commented because we have it already
     #cached_search_dir = cwd + "/" + SEARCH_DESINATION_DIR
     #print (cached_search_dir)
-    dirs_list = [ cached_search_dir + "/" + x for x in os.listdir(cached_search_dir) if os.path.isdir(cached_search_dir + "/" + x) ]
+    #dirs_list = [ cached_search_dir + "/" + x for x in os.listdir(cached_search_dir) if os.path.isdir(cached_search_dir + "/" + x) ]
+    dirs_list = [ cached_search_dir + "/" + x for x in search_keyword ]
     #retrieve_nsmallest_dist step
     print("Retrieve nsmallest distance step")
 

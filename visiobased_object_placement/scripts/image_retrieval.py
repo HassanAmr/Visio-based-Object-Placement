@@ -340,10 +340,12 @@ def retrieve_nsmallest_dist(query_image, test_dirs, out_dir, n, dist_type, weigh
         for j in datalist_test:
             try:
                 img_test = imread(j)
+                img_test = cv2.cvtColor(img_test, cv2.COLOR_BGRA2BGR)
+                img_test = imresize(img_test, (224, 224))
             except:
+                print("Error with file:\t"+j)
                 continue
-            img_test = cv2.cvtColor(img_test, cv2.COLOR_BGRA2BGR)
-            img_test = imresize(img_test, (224, 224))
+            
 
             # Extract image descriptor in layer fc2/Relu. If you want, change fc2 to fc1
             layer_test = sess.graph.get_tensor_by_name('fc2/Relu:0')

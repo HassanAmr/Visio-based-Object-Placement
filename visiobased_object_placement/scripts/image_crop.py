@@ -14,21 +14,22 @@ def crop(image, threshold=0):
 
     """
 
+    inv_image = cv2.bitwise_not(image)
     #image = cv2.imread(inputImg)
-    if len(image.shape) == 3:
-        flatImage = np.max(image, 2)
+    if len(inv_image.shape) == 3:
+        flatImage = np.max(inv_image, 2)
     else:
-        flatImage = image
+        flatImage = inv_image
     assert len(flatImage.shape) == 2
 
     rows = np.where(np.max(flatImage, 0) > threshold)[0]
     if rows.size:
         cols = np.where(np.max(flatImage, 1) > threshold)[0]
-        image = image[cols[0]: cols[-1] + 1, rows[0]: rows[-1] + 1]
+        inv_image = inv_image[cols[0]: cols[-1] + 1, rows[0]: rows[-1] + 1]
     else:
-        image = image[:1, :1]
+        inv_image = inv_image[:1, :1]
 
-    return image
+    return cv2.bitwise_not(inv_image)
     
     #img = cv2.imread(image)
     #gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)

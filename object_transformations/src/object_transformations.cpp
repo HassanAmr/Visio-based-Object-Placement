@@ -97,6 +97,142 @@ cv::String RemoveFileExtension (const std::string& str)
   return str.substr(0, lastindex);
 }
 
+void drawBadMatches(
+    const std::vector<cv::KeyPoint>& keypoints1,
+    const std::vector<cv::KeyPoint>& keypoints2,
+    const cv::Mat& _img1,
+    const cv::Mat& _img2,
+    std::vector< std::vector<cv::DMatch> >& bad_matches,
+    std::vector<cv::DMatch>& backward_matches,
+    std::string currImgText
+    )
+{
+	std::cout<<"Bad Match!"<<std::endl;
+	std::vector< cv::DMatch > good_matches;
+	for( int i = 0; i < bad_matches.size(); i++ )
+	{
+		if (bad_matches[i][0].distance < ratio_Lowe * bad_matches[i][1].distance)
+		{
+			cv::DMatch forward = bad_matches[i][0];
+			cv::DMatch backward = backward_matches[forward.trainIdx];
+			if(backward.trainIdx == forward.queryIdx)
+			{
+				good_matches.push_back(forward);
+			}
+		}
+	}
+	//-- Localize the object
+	std::vector<cv::Point2f> obj;
+	std::vector<cv::Point2f> scene;
+
+	for( size_t i = 0; i < good_matches.size(); i++ )
+	{
+		//-- Get the keypoints from the good matches
+		obj.push_back( keypoints1[ good_matches[i].queryIdx ].pt );
+		scene.push_back( keypoints2[ good_matches[i].trainIdx ].pt );
+	}
+
+	cv::String outFile = output_location + "/Bad_" + RemoveFileExtension(SplitFilename(currImgText));
+
+	// drawing the results
+
+	cv::Size img1size = _img1.size(), img2size = _img2.size();
+	cv::Size size( img1size.width + img2size.width, MAX(img1size.height, img2size.height) );
+	cv::Mat canvas = cv::Mat(size, CV_8UC3, cv::Scalar(255,255,255));
+
+
+	std::vector<cv::Point> pts;
+	for (size_t i = 0; i < keypoints1.size(); i++)
+	{
+		pts.push_back(keypoints1[i].pt);
+	}
+	std::vector<cv::Point> hull;
+	cv::convexHull(pts,hull);
+
+	cv::Mat mask(img1size, CV_8UC3, cv::Scalar(255,255,255));
+	cv::fillConvexPoly(mask, hull, cv::Scalar(0,0,0));
+
+	cv::Mat img1 = cv::Mat(img1size, CV_8UC3, cv::Scalar(255,255,255));
+	cv::Mat img2;
+
+	bitwise_or(_img1, mask, img1);
+	//_img1.copyTo(img1);
+	_img2.copyTo(img2);
+
+	//start drawings
+	cv::Mat img_keypoints = canvas;
+	cv::Mat img1_keypoints, img2_keypoints;
+	cv::drawKeypoints(img1,keypoints1,img1_keypoints);
+	cv::drawKeypoints(img2,keypoints2,img2_keypoints);
+
+	img1_keypoints.copyTo(img_keypoints(cv::Rect(0, 0, img1_keypoints.cols, img1_keypoints.rows)));
+	img2_keypoints.copyTo(img_keypoints(cv::Rect(img1_keypoints.cols, 0, img2_keypoints.cols, img2_keypoints.rows)));
+	imwrite(outFile + "_keypoints" + dataset_type, img_keypoints);
+
+
+	img1.copyTo(canvas(cv::Rect(0, 0, img1.cols, img1.rows)));
+	img2.copyTo(canvas(cv::Rect(img1.cols, 0, img2.cols, img2.rows)));
+
+	cv::Mat img_matches;
+	canvas.copyTo(img_matches);
+
+	drawMatches( img1, keypoints1, img2, keypoints2,
+			good_matches, img_matches, cv::Scalar::all(-1), cv::Scalar::all(-1),
+			std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS | cv::DrawMatchesFlags::DRAW_OVER_OUTIMG );
+	imwrite(outFile + "_matches" + dataset_type, img_matches);
+
+
+
+
+	cv::Mat img_rotation;
+	canvas.copyTo(img_rotation);
+
+	std::vector<cv::Point2f> obj_corners(hull.size());
+	std::vector<cv::Point2f> scene_corners(hull.size());
+
+	for(int i = 0; i < hull.size();i++)
+	{
+		obj_corners[i] = hull[i];
+	}
+
+	//-- Draw lines between the corners (the mapped object in the scene - image_2 )
+	for(int i = 0; i < obj_corners.size();i++)
+	{
+		line( img_rotation,
+				obj_corners[i], obj_corners[(i+1)%obj_corners.size()],
+				cv::Scalar( 0, 255, 0), 2, cv::LINE_AA );
+
+	}
+
+	cv::Mat H = findHomography( obj, scene, cv::RANSAC, 3 );
+	if (countNonZero(H) > 0 )
+	{
+		cv::perspectiveTransform( obj_corners, scene_corners, H);
+		cv::Point2f offset = cv::Point2f( (float)img1.cols, 0);
+		for(int i = 0; i < scene_corners.size();i++)
+		{
+			line( img_rotation,
+					scene_corners[i] + offset, scene_corners[(i+1)%scene_corners.size()] + offset,
+					cv::Scalar( 0, 255, 0), 2, cv::LINE_AA );
+
+		}
+
+		int ptIndex = 0;
+		cv::RNG rng(12345);
+		for (int i = 0; i < 4;i++)
+		{
+			ptIndex = (((float)i/(float)4)*obj_corners.size());
+			cv::Point p1 = obj_corners[ptIndex];
+			cv::Point p2 = scene_corners[ptIndex] + offset;
+			cv::LineIterator it(img_rotation, p1, p2, 8);            // get a line iterator
+			int color = rng.uniform(0,255);
+			for(int j = 0; j < it.count; j++,it++)
+				if ( j%5!=0 ) {(*it)[1] = color;}         // every 5'th pixel gets dropped, blue stipple line
+		}
+	}
+	imwrite(outFile + "_rotation" + dataset_type, img_rotation);
+}
+
 void drawGoodMatches(
     const std::vector<cv::KeyPoint>& keypoints1,
     const std::vector<cv::KeyPoint>& keypoints2,
@@ -177,7 +313,7 @@ void drawGoodMatches(
 	{
 		line( img_rotation,
 				obj_corners[i], obj_corners[(i+1)%obj_corners.size()],
-				cv::Scalar( 0, 255, 0), 2, cv::LINE_AA );
+				cv::Scalar( 255, 0, 0), 2, cv::LINE_AA );
 
 	}
 
@@ -187,21 +323,31 @@ void drawGoodMatches(
 	{
 		line( img_rotation,
 		          scene_corners[i] + offset, scene_corners[(i+1)%scene_corners.size()] + offset,
-				  cv::Scalar( 0, 255, 0), 2, cv::LINE_AA );
+				  cv::Scalar( 255, 0, 0), 2, cv::LINE_AA );
 
 	}
 
 	int ptIndex = 0;
-	cv::RNG rng(12345);
+	//cv::RNG rng(12345);
+	int color = 0;
 	for (int i = 0; i < 4;i++)
 	{
 		ptIndex = (((float)i/(float)4)*obj_corners.size());
 		cv::Point p1 = obj_corners[ptIndex];
 		cv::Point p2 = scene_corners[ptIndex] + offset;
 		cv::LineIterator it(img_rotation, p1, p2, 8);            // get a line iterator
-		int color = rng.uniform(0,255);
-		for(int j = 0; j < it.count; j++,it++)
-		    if ( j%5!=0 ) {(*it)[1] = color;}         // every 5'th pixel gets dropped, blue stipple line
+		//color = rng.uniform(0,255);
+		if ((i % 2) == 0){
+			//color = 255;
+			line( img_rotation, p1, p2, cv::Scalar( 0, 0, 255), 1, cv::LINE_AA );
+		}
+		else{
+			//color = 0;
+			line( img_rotation, p1, p2, cv::Scalar( 0, 0, 0), 1, cv::LINE_AA );
+
+		}
+		//for(int j = 0; j < it.count; j++,it++)
+		//    if ( j%5!=0 ) {(*it)[2] = color;}         // every 5'th pixel gets dropped, red or black stipple line
 	}
     imwrite(outFile + "_rotation" + dataset_type, img_rotation);
 }
@@ -406,6 +552,10 @@ cv::Mat findGoodMatches_debug(
 				}
 			}
 		}
+		else
+		{
+			break;
+		}
 	}
 
     return H;
@@ -432,7 +582,6 @@ cv::Mat findGoodMatches(
             }
         }
     }
-
     int last_good_matches = 0;
 	cv::Mat H;
 	std::vector<cv::KeyPoint>  newKeypoints2 = keypoints2;//because we need keypoints2 unaffected to draw them at the end.
@@ -505,6 +654,9 @@ cv::Mat findGoodMatches(
 					tempKeys.clear();
 				}
 			}
+		}
+		else{
+			break;
 		}
 	}
     return H;
@@ -666,7 +818,34 @@ int main(int argc, char **argv)
 
 		cv::UMat img2;
 		cv::UMat testImg;
-		testImg = imread(filenames[i], CV_LOAD_IMAGE_GRAYSCALE).getUMat( cv::ACCESS_READ );
+
+		int reduced = 0;
+		try
+		{
+			imread(filenames[i], CV_LOAD_IMAGE_GRAYSCALE).copyTo(testImg);//get corresponding image
+
+			if (MAX(testImg.rows, testImg.cols) > 3000)
+			{
+				testImg.release();
+				imread(filenames[i], cv::IMREAD_REDUCED_GRAYSCALE_4).copyTo(testImg);//get corresponding image
+				reduced = 4;
+
+			}
+			else if (MAX(testImg.rows, testImg.cols) > 1500)
+			{
+				testImg.release();
+				imread(filenames[i], cv::IMREAD_REDUCED_GRAYSCALE_2).copyTo(testImg);//get corresponding image
+				reduced = 2;
+			}
+
+		}
+		catch (const std::exception& e)
+		{
+			ROS_WARN("Something went wrong when loading the test image %s. Skipping over it.", filenames[i].c_str());
+			continue;
+		}
+
+		//testImg = imread(filenames[i], CV_LOAD_IMAGE_GRAYSCALE).getUMat( cv::ACCESS_READ );
 		if(queryImg.empty())
 		{
 			std::cout << "Couldn't load " << test_location << std::endl;
@@ -695,7 +874,15 @@ int main(int argc, char **argv)
 	    double minDist = matches.front()[0].distance;
 	    double maxDist = matches.back()[0].distance;
 
-		currM = findGoodMatches(keypoints1, keypoints2, matches, backward_matches, selected_matches);
+	    try
+	    {
+	    	currM = findGoodMatches(keypoints1, keypoints2, matches, backward_matches, selected_matches);
+	    }
+	    catch (const std::exception& e)
+	    {
+			ROS_WARN("Something is not right with the matching results for file:\t %s", filenames[i].c_str());
+	    	continue;
+	    }
 	    int64 t1 = cv::getTickCount();
 		//--------------------------------------------------------------------------------------------------------------------------------------
 	    double secs = (t1-t0)/cv::getTickFrequency();
@@ -730,11 +917,46 @@ int main(int argc, char **argv)
 			}
 	    }
 		cv::UMat colorImg;
-		imread(filenames[i], CV_LOAD_IMAGE_COLOR).copyTo(colorImg);//get corresponding image
+
+		try
+		{
+			if (reduced == 4)
+			{
+				imread(filenames[i], cv::IMREAD_REDUCED_COLOR_4).copyTo(colorImg);//get corresponding image
+
+			}
+			else if (reduced == 2)
+			{
+				imread(filenames[i], cv::IMREAD_REDUCED_COLOR_2).copyTo(colorImg);//get corresponding image
+			}
+			else
+			{
+				imread(filenames[i], CV_LOAD_IMAGE_COLOR).copyTo(colorImg);//get corresponding image
+			}
+		}
+		catch (const std::exception& e)
+		{
+			ROS_WARN("Something went wrong when loading the image. File is probably too big. Will load greyscale image instead.");
+			continue;
+		}
 
 		cv::Mat img_matches;
-		drawGoodMatches(keypoints1, keypoints2, queryColorImg.getMat(cv::ACCESS_READ), colorImg.getMat(cv::ACCESS_READ), currM, selected_matches, filenames[i].c_str());
-
+		try
+		{
+			if (selected_matches.size() > 0)
+			{
+				drawGoodMatches(keypoints1, keypoints2, queryColorImg.getMat(cv::ACCESS_READ), colorImg.getMat(cv::ACCESS_READ), currM, selected_matches, filenames[i].c_str());
+			}
+			else
+			{
+				drawBadMatches(keypoints1, keypoints2, queryColorImg.getMat(cv::ACCESS_READ), colorImg.getMat(cv::ACCESS_READ), matches, backward_matches, filenames[i].c_str());
+			}
+		}
+		catch (const std::exception& e)
+		{
+			ROS_WARN("Something went wrong when drawing results for file:\t %s", filenames[i].c_str());
+			continue;
+		}
 		int64 t1_lost = cv::getTickCount();
 		time_lost += (t1_lost-t0_lost)/cv::getTickFrequency();
 	    //######################################################################################################################################

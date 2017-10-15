@@ -1,0 +1,25 @@
+<launch>
+	<!-- Start camera -->
+	<include file="$(find kinect2_bridge)/launch/kinect2_bridge.launch">
+		<arg name="publish_tf" default="true" />
+	</include>
+
+	<group ns="iiwa">
+		<include file="$(find kuka_manager)/launch/iiwa_manager.launch" />
+		<!--include file="$(find kuka_manager)/launch/moveit_iiwa_sdh2.launch"/-->
+		<include file="$(find sdh2_hand)/launch/sdh2_hand_iiwa.launch" />
+
+		<param name="robot_description" textfile="$(find iiwa_description)/urdf/iiwa_sdh2.urdf" />
+		<param name="collision_matrix" type="string" value="$(find iiwa_description)/collision_matrices/iiwa_sdh2.cm" />
+		<node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" respawn="true" output="screen">
+			<param name="tf_prefix" type="string" value="iiwa" />
+		</node>
+	</group>
+	
+	<node name="camera_tf_broadcaster_table_camera_to_iiwa" pkg="lbr_camera_calibration" type="camera_tf_broadcaster">
+		<param name="from_link" value="/kinect2_link" />
+		<param name="to_link" value="/iiwa/iiwa_base_link" />
+		<!--The following line is only needed if you have a calibration file in custom location -->
+		<param name="calibration_file" value="$(find iiwa_calibration)/calibration_files/table_camera_to_iiwa.mat" />
+	</node>
+</launch>

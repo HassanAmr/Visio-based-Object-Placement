@@ -29,7 +29,9 @@ tf::TransformListener * listener;
 tf::TransformBroadcaster * br;
 ros::Publisher pub;
 image_transport::Publisher imagePub;
-//int fileCounter = 0;
+int fileCounter = 0;
+int validPixelCounter = 0;
+int lastValidPixelCount = 0;
 
 //const std::string fileExt = ".pcd";
 const std::string fileExt = ".jpg";
@@ -117,6 +119,7 @@ void callback(const PointCloud::ConstPtr& msg, const sensor_msgs::Image::ConstPt
     //the following are used to hold the indexes of the first and last occurance of rgb within our pointcloud
     //so that the subsequent inner loop can get fill only the needed rgb values in our rgb image.
     int start_rgb, end_rgb;
+    validPixelCounter = 0;
     for(int v = 0; v < 1080; ++v)
     {
       for(int u = 0; u < 1920; ++u)
@@ -138,6 +141,7 @@ void callback(const PointCloud::ConstPtr& msg, const sensor_msgs::Image::ConstPt
 			if(intensity != cv::Vec3b(0,0,0))
 			{
 				end_rgb = u;
+				validPixelCounter++;
 			}
         }
       }
@@ -180,8 +184,12 @@ void callback(const PointCloud::ConstPtr& msg, const sensor_msgs::Image::ConstPt
     //oss_rgb << fileCounter << "_rgb" << fileExt;
     //std::cout << oss_rgb.str()<< " created." << std::endl;
 
-    //cv::imwrite(oss_rgb.str(), image_rgb);
-
+    if (validPixelCounter > lastValidPixelCount)
+    {
+    	cv::imwrite("bg_subtracted_image.jpg", image_rgb);
+    	lastValidPixelCount = validPixelCounter;
+    	//fileCounter++;
+    }
 
     //pcl::io::savePCDFileASCII (oss.str(), *cloud);
     //fileCounter++;

@@ -204,30 +204,45 @@ void drawBadMatches(
 
 	}
 
-	cv::Mat H = findHomography( obj, scene, cv::RANSAC, 3 );
-	if (countNonZero(H) > 0 )
+	if (good_matches.size() > 0)
 	{
-		cv::perspectiveTransform( obj_corners, scene_corners, H);
-		cv::Point2f offset = cv::Point2f( (float)img1.cols, 0);
-		for(int i = 0; i < scene_corners.size();i++)
-		{
-			line( img_rotation,
-					scene_corners[i] + offset, scene_corners[(i+1)%scene_corners.size()] + offset,
-					cv::Scalar( 0, 255, 0), 2, cv::LINE_AA );
+		cv::Mat H = findHomography( obj, scene, cv::RANSAC, 3 );
 
-		}
 
-		int ptIndex = 0;
-		cv::RNG rng(12345);
-		for (int i = 0; i < 4;i++)
+		if (countNonZero(H) > 0 )
 		{
-			ptIndex = (((float)i/(float)4)*obj_corners.size());
-			cv::Point p1 = obj_corners[ptIndex];
-			cv::Point p2 = scene_corners[ptIndex] + offset;
-			cv::LineIterator it(img_rotation, p1, p2, 8);            // get a line iterator
-			int color = rng.uniform(0,255);
-			for(int j = 0; j < it.count; j++,it++)
-				if ( j%5!=0 ) {(*it)[1] = color;}         // every 5'th pixel gets dropped, blue stipple line
+			cv::perspectiveTransform( obj_corners, scene_corners, H);
+			cv::Point2f offset = cv::Point2f( (float)img1.cols, 0);
+			for(int i = 0; i < scene_corners.size();i++)
+			{
+				line( img_rotation,
+						scene_corners[i] + offset, scene_corners[(i+1)%scene_corners.size()] + offset,
+						cv::Scalar( 0, 255, 0), 2, cv::LINE_AA );
+
+			}
+
+			int ptIndex = 0;
+			//cv::RNG rng(12345);
+			int color = 0;
+			for (int i = 0; i < 4;i++)
+			{
+				ptIndex = (((float)i/(float)4)*obj_corners.size());
+				cv::Point p1 = obj_corners[ptIndex];
+				cv::Point p2 = scene_corners[ptIndex] + offset;
+				cv::LineIterator it(img_rotation, p1, p2, 8);            // get a line iterator
+				//color = rng.uniform(0,255);
+				if ((i % 2) == 0){
+					//color = 255;
+					line( img_rotation, p1, p2, cv::Scalar( 0, 0, 255), 1, cv::LINE_AA );
+				}
+				else{
+					//color = 0;
+					line( img_rotation, p1, p2, cv::Scalar( 0, 0, 0), 1, cv::LINE_AA );
+
+				}
+				//for(int j = 0; j < it.count; j++,it++)
+				//    if ( j%5!=0 ) {(*it)[2] = color;}         // every 5'th pixel gets dropped, red or black stipple line
+			}
 		}
 	}
 	imwrite(outFile + "_rotation" + dataset_type, img_rotation);
@@ -392,8 +407,11 @@ cv::Mat findGoodMatches_debug(
     //std::cout << "Calculating homography using " << ptsPairs << " point pairs." << std::endl;
     int last_good_matches = 0;
 	cv::Mat H;//, M; //The matrices to be returned
-	std::vector<cv::KeyPoint>  newKeypoints2 = keypoints2;
+	std::vector<cv::KeyPoint>  newKeypoints2;
+	for (int i=0; i<keypoints2.size(); i++)
+		newKeypoints2.push_back(keypoints2[i]);
 	//new_matches = good_matches;
+	int drawCounter = 0;
     while (1)
 	{
     //-- Localize the object
@@ -435,55 +453,8 @@ cv::Mat findGoodMatches_debug(
 				cv::perspectiveTransform( obj_corners, scene_corners, H);
 				std::cout<<"scene_corners: "<< std::endl;
 				std::cout<<scene_corners << std::endl;
-				double max_x2 = 0;
-				double min_x2 = 5000;//works as infinity for such image sizes
-				double max_y2 = 0;
-				double min_y2 = 5000;//works as infinity for such image sizes
-				double curX2, curY2;
-				for (size_t i = 0; i < scene_corners.size(); i++)
-				{
-					curX2 = scene_corners[i].x;
-					curY2 = scene_corners[i].y;
-					if (curX2 > max_x2)
-						max_x2 = curX2;
-					if (curY2 > max_y2)
-						max_y2 = curY2;
 
-					if (curX2 < min_x2)
-						min_x2 = curX2;
-					if (curY2 < min_y2)
-						min_y2 = curY2;
-				}
-
-				if (min_x2 > 0)
-					min_x2 = 0;
-				else
-					min_x2 *= -1;
-				if (min_y2 > 0)
-					min_y2 = 0;
-				else
-					min_y2 *= -1;
-/*
-				if (max_x2 > cols)
-					max_x2 = cols - max_x2;
-				else
-					max_x2 = 0;
-				if (max_y2 > rows)
-					max_y2 = rows - max_y2;
-				else
-					max_y2  = 0;
-*/
-				//cv::Point2f offset = cv::Point2f(min_x2,min_y2) + cv::Point2f(max_x2,max_y2);
-				//cv::Point2f offset = cv::Point2f(min_x2,min_y2);// + cv::Point2f(max_x2,max_y2);
-				//std::cout << "offset "<<offset<<std::endl;
-
-				//find out later what this does
-				//scene_corners_ = scene_corners;
-
-				//Mat drawing = Mat::zeros( img2.size(), img2.type() );
-				//using searchImg since img2 is currently not available, and both are the same size.
-				//later should be set to the region where the object surely is.
-				cv::Mat drawing = cv::Mat::zeros(5*rows,5*cols, CV_8UC1); //opencv deals with matrix
+				cv::Mat drawing = cv::Mat::zeros(rows,cols, CV_8UC1); //opencv deals with matrix
 
 				for(int i = 0; i < scene_corners.size();i++)
 				{
@@ -492,46 +463,61 @@ cv::Mat findGoodMatches_debug(
 							cv::Scalar( 255 ), 3, 8 );
 				}
 
-				cv::String outFile = "/home/hassan/tmp/drawings/" + RemoveFileExtension(SplitFilename(currImgText)) + "_drawing" + ".jpg";
+				cv::String outFile = "/home/hassan/tmp/drawings/" + RemoveFileExtension(SplitFilename(currImgText)) + "_drawing_" + std::to_string(drawCounter) + ".jpg";
 				imwrite(outFile, drawing);
 
-				cv::UMat tempImg;
+				cv::UMat tempImg, tempImg2;
 				cv::imread(currImgText, CV_LOAD_IMAGE_COLOR).copyTo(tempImg);//get corresponding image
+				cv::imread(currImgText, CV_LOAD_IMAGE_COLOR).copyTo(tempImg2);//get corresponding image
 				for(int i = 0; i < scene_corners.size();i++)
 				{
 					line( tempImg,
 							scene_corners[i], scene_corners[(i+1)%scene_corners.size()],// + offset,
 							cv::Scalar( 255 ), 3, 8 );
+					line( tempImg2,
+							scene_corners[i], scene_corners[(i+1)%scene_corners.size()],// + offset,
+							cv::Scalar( 255 ), 3, 8 );
 				}
 
-				cv::String outFile1 = "/home/hassan/tmp/drawings/" + RemoveFileExtension(SplitFilename(currImgText)) + "_check1" + ".jpg";
-				cv::drawKeypoints(tempImg,keypoints2, tempImg );
+				cv::String outFile1 = "/home/hassan/tmp/drawings/" + RemoveFileExtension(SplitFilename(currImgText)) + "_check1_" + std::to_string(drawCounter) + ".jpg";
+				for ( size_t i = 0; i < good_matches.size(); i++ )
+				{
+					std::vector<cv::KeyPoint> newK;
+					newK.push_back(keypoints2[ good_matches[i].trainIdx ]);
+					cv::drawKeypoints(tempImg,newK, tempImg, cv::Scalar( 0, 255, 0));
+				}
 				cv::imwrite(outFile1, tempImg);
 				std::vector<cv::KeyPoint> tempKeys;
 				//find contours of the above drawn region
 				double test = 0.0;
-				cv::UMat tempImg2;
-				cv::imread(currImgText, CV_LOAD_IMAGE_GRAYSCALE).copyTo(tempImg2);//get corresponding image
-				cv::String outFile2 = "/home/hassan/tmp/drawings/" + RemoveFileExtension(SplitFilename(currImgText)) + "_check2" + ".jpg";
+				//cv::UMat tempImg2;
+				//cv::imread(currImgText, CV_LOAD_IMAGE_COLOR).copyTo(tempImg2);//get corresponding image
+				cv::String outFile2 = "/home/hassan/tmp/drawings/" + RemoveFileExtension(SplitFilename(currImgText)) + "_check2_" + std::to_string(drawCounter++) + ".jpg";
 
-			    std::vector<std::vector<cv::Point> > contours;
-			    contours.push_back(hull);
-				cv::drawContours( tempImg2, contours, 0, cv::Scalar( 255 ), 2, 8);
+			    //std::vector<std::vector<cv::Point> > contours;
+			    //contours.push_back(hull);
+				//cv::drawContours( tempImg2, contours, 0, cv::Scalar( 255 ), 2, 8);
+
+				for( size_t i = 0; i < newKeypoints2.size(); i++ )
+					std::cout<<i<<": " << newKeypoints2[i].pt<< std::endl;
+				std::cout<< "-------------------------------------------------------------------------------"<< std::endl;
 
 				for( size_t i = 0; i < good_matches.size(); i++ )
 				{
-					test = pointPolygonTest( scene_corners, newKeypoints2[ good_matches[i].trainIdx ].pt , false );
+					std::cout<<i<<": " <<keypoints2[ good_matches[i].trainIdx ].pt<< std::endl;
+
+					test = pointPolygonTest( scene_corners, keypoints2[ good_matches[i].trainIdx ].pt , false );
 
 					if (test >= 0)
 					{
 						selected_matches.push_back(good_matches[i]);
-						tempKeys.push_back(newKeypoints2[ good_matches[i].trainIdx ]);
+						tempKeys.push_back(keypoints2[ good_matches[i].trainIdx ]);
 					}
 				}
 
 				std::cout<< "good_matches: " <<selected_matches.size()<< std::endl;
 
-				cv::drawKeypoints(tempImg2,tempKeys, tempImg2, cv::Scalar( 255 ) );
+				cv::drawKeypoints(tempImg2,tempKeys, tempImg2, cv::Scalar( 0, 255, 0));
 				cv::imwrite(outFile2, tempImg2);
 				if (last_good_matches == selected_matches.size())
 				{
@@ -584,7 +570,10 @@ cv::Mat findGoodMatches(
     }
     int last_good_matches = 0;
 	cv::Mat H;
-	std::vector<cv::KeyPoint>  newKeypoints2 = keypoints2;//because we need keypoints2 unaffected to draw them at the end.
+	//because we need keypoints2 unaffected to draw them at the end.
+	std::vector<cv::KeyPoint>  newKeypoints2;
+		for (int i=0; i<keypoints2.size(); i++)
+			newKeypoints2.push_back(keypoints2[i]);
     while (1)
 	{
     //-- Localize the object
@@ -628,12 +617,12 @@ cv::Mat findGoodMatches(
 				double test = 0.0;
 				for( size_t i = 0; i < good_matches.size(); i++ )
 				{
-					test = pointPolygonTest( scene_corners, newKeypoints2[ good_matches[i].trainIdx ].pt , false );
+					test = pointPolygonTest( scene_corners, keypoints2[ good_matches[i].trainIdx ].pt , false );
 
 					if (test >= 0)
 					{
 						selected_matches.push_back(good_matches[i]);
-						tempKeys.push_back(newKeypoints2[ good_matches[i].trainIdx ]);
+						tempKeys.push_back(keypoints2[ good_matches[i].trainIdx ]);
 					}
 				}
 				if (last_good_matches == selected_matches.size())//check whether we converged or not
@@ -814,7 +803,8 @@ int main(int argc, char **argv)
 	if (filenames.size() < 1)
 	{
 		ROS_WARN("No files processed.\nWaiting for user to terminate.");
-		while (1){}
+		return EXIT_SUCCESS;
+		//while (1){}
 	}
 	for (size_t i=0; i< filenames.size(); i++)
 	{
@@ -875,6 +865,7 @@ int main(int argc, char **argv)
 		std::vector<cv::DMatch> selected_matches;
 
 	    //-- Sort matches
+		//We are only allowed to sort matches. We can never touch backwards, since we use trainIdx (descriptors2 index) to fetch the relevant match from backwards matches.
 	    std::sort(matches.begin(), matches.end());
 	    double minDist = matches.front()[0].distance;
 	    double maxDist = matches.back()[0].distance;
@@ -982,6 +973,12 @@ int main(int argc, char **argv)
 		selected_matches.clear();
 		keypoints2.clear();
 		descriptors2.release();
+	}
+	if (maxFitnessScore == 0)
+	{
+		ROS_WARN("No Good results.\nWaiting for user to terminate.");
+		return EXIT_SUCCESS;
+		//while (1){}
 	}
 	//compute transform matrix then print
 	std::vector<cv::Mat> oRvecs, oTvecs, oNvecs;

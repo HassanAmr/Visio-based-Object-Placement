@@ -154,7 +154,8 @@ def image_callback(msg):
 
 
         web_results = detect_image.report(detect_image.detect_web(imageBuffer))
-        search_keyword = web_results#[:4] #get only highest 4 results
+        #search_keyword = web_results#[:4] #get only highest 4 results
+        search_keyword = [x for x in web_results if x]
         t1_step = time.time()
         step_time = t1_step-t0_step
         print("\nCloud API: " + str(step_time))

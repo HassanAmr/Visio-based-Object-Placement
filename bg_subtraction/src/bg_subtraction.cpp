@@ -1,4 +1,5 @@
 #include <ros/ros.h>
+#include <rosbag/bag.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <message_filters/synchronizer.h>
@@ -29,7 +30,11 @@ tf::TransformListener * listener;
 tf::TransformBroadcaster * br;
 ros::Publisher pub;
 image_transport::Publisher imagePub;
-//int fileCounter = 0;
+rosbag::Bag bag;
+
+int fileCounter = 0;
+int validPixelCounter = 0;
+int lastValidPixelCount = 0;
 
 //const std::string fileExt = ".pcd";
 const std::string fileExt = ".jpg";
@@ -105,65 +110,116 @@ void callback(const PointCloud::ConstPtr& msg, const sensor_msgs::Image::ConstPt
     pub.publish(*cloud_projected);
 
     //cv_bridge::CvImagePtr
+
     cv::Mat image(1080, 1920, CV_8UC3, cv::Scalar(0, 0, 0));
     cv::Mat image_rgb(1080, 1920, CV_8UC3, cv::Scalar(255, 255, 255));
+    cv::Mat image_rgb2(1080, 1920, CV_8UC3, cv::Scalar(255, 255, 255));
 
 
-    cv::Vec3b intensity, rgb_intensity;
+
+    cv::Vec3b intensity, rgb_intensity, rgb_intensity2;
     //std::cout<<cloud_projected->width<<std::endl;
     //std::cout<<cloud_projected->height<<std::endl;
     i = 0;
     int j = 0;
     //the following are used to hold the indexes of the first and last occurance of rgb within our pointcloud
     //so that the subsequent inner loop can get fill only the needed rgb values in our rgb image.
-    int start_rgb, end_rgb;
+    int start_rgb, end_rgb, min_start = 1920, max_end = 0;
+    validPixelCounter = 0;
+    int first_v = 0, last_v;
     for(int v = 0; v < 1080; ++v)
     {
-      for(int u = 0; u < 1920; ++u)
-      {
-        intensity.val[0] = cloud_projected->points[i].b;
-        intensity.val[1] = cloud_projected->points[i].g;
-        intensity.val[2] = cloud_projected->points[i++].r;
-        image.at<cv::Vec3b>(cv::Point(u,v)) = intensity;
+    	for(int u = 0; u < 1920; ++u)
+    	{
+    		intensity.val[0] = cloud_projected->points[i].b;
+    		intensity.val[1] = cloud_projected->points[i].g;
+    		intensity.val[2] = cloud_projected->points[i++].r;
+    		image.at<cv::Vec3b>(cv::Point(u,v)) = intensity;
 
-        if(start_rgb == 0)
-        {
-			if(intensity != cv::Vec3b(0,0,0))
-			{
-				start_rgb = u;
-			}
-        }
-        else
-        {
-			if(intensity != cv::Vec3b(0,0,0))
-			{
-				end_rgb = u;
-			}
-        }
-      }
-      for (int u = 0; u < 1920; ++u)
-      {
-    	  if (u >= start_rgb && u < end_rgb)
-    	  {
-    		  rgb_intensity.val[0] = imageRgb->data[3*j];
-    		  rgb_intensity.val[1] = imageRgb->data[3*j + 1];
-    		  rgb_intensity.val[2] = imageRgb->data[3*j + 2];
-    		  image_rgb.at<cv::Vec3b>(cv::Point(u,v)) = rgb_intensity;
-    	  }
-    	  j++;
-      }
-      start_rgb = 0;
-      end_rgb = 0;
+    		if(start_rgb == 0)
+    		{
+    			if(intensity != cv::Vec3b(0,0,0))
+    			{
+    				start_rgb = u;
+    				if (start_rgb < min_start)
+    				{
+    					min_start = start_rgb;
+    				}
+    				if(first_v == 0)
+    				{
+    					first_v = v;
+    				}
+    			}
+    		}
+    		else
+    		{
+    			if(intensity != cv::Vec3b(0,0,0))
+    			{
+    				end_rgb = u;
+    				last_v = v;
+    				validPixelCounter++;
+    			}
+    		}
+    		if (end_rgb > max_end )
+    		{
+    			max_end = end_rgb;
+    		}
+    	}
+
+    	for (int u = 0; u < 1920; ++u)
+    	{
+    		if (u >= start_rgb && u < end_rgb)
+    		{
+    			rgb_intensity.val[0] = imageRgb->data[3*j];
+    			rgb_intensity.val[1] = imageRgb->data[3*j + 1];
+    			rgb_intensity.val[2] = imageRgb->data[3*j + 2];
+    			image_rgb.at<cv::Vec3b>(cv::Point(u,v)) = rgb_intensity;
+    		}
+    		j++;
+    	}
+
+
+    	start_rgb = 0;
+    	end_rgb = 0;
     }
+    min_start-= 25;
+    max_end += 	25;
+    first_v -= 	25;
+    last_v +=	25;
+    j = 0;
+    for(int v = 0; v < 1080; ++v)
+    {
+    	for (int u = 0; u < 1920; ++u)
+    	{
+    		if(u >= min_start && u < max_end && v >= first_v && v < last_v)
+    		{
+    			rgb_intensity.val[0] = imageRgb->data[3*j];
+    			rgb_intensity.val[1] = imageRgb->data[3*j + 1];
+    			rgb_intensity.val[2] = imageRgb->data[3*j + 2];
+    			image_rgb2.at<cv::Vec3b>(cv::Point(u,v)) = rgb_intensity;
+    		}
+    		j++;
+    	}
+    }
+
+    //std::cout<<min_start<<std::endl;
+    //std::cout<<max_end<<std::endl;
+    //std::cout<<first_v<<std::endl;
+    //std::cout<<last_v<<std::endl;
+    //std::cout<<min_start - 25<<std::endl;
+    //std::cout<<first_v - 25<<std::endl;
+    //std::cout<<max_end - min_start + 50<<std::endl;
+    //std::cout<<last_v - first_v + 50<<std::endl;
+    //cv_ptr->image.copyTo(image_rgb2(cv::Rect(min_start - 25, first_v - 25, max_end - min_start + 50, last_v - first_v + 50)));
 
     cv_bridge::CvImage imageMsg;
     imageMsg.header.frame_id = msg->header.frame_id;
     imageMsg.header.stamp = ros::Time::now();
     imageMsg.encoding = "bgr8"; // Or whatever
-    imageMsg.image    = image_rgb; // Your cv::Mat
+    imageMsg.image    = image_rgb2; // Your cv::Mat
     //sensor_msgs::ImagePtr imageMsg = cv_bridge::CvImage(, , image).toImageMsg();
     imagePub.publish(imageMsg.toImageMsg());
-    
+
     //cloud->header.frame_id = msg->header.frame_id;
     //cloud->header.stamp = msg->header.stamp;
 
@@ -180,7 +236,24 @@ void callback(const PointCloud::ConstPtr& msg, const sensor_msgs::Image::ConstPt
     //oss_rgb << fileCounter << "_rgb" << fileExt;
     //std::cout << oss_rgb.str()<< " created." << std::endl;
 
-    //cv::imwrite(oss_rgb.str(), image_rgb);
+    if (validPixelCounter > lastValidPixelCount)
+    {
+    	cv::imwrite("bg_subtracted_image.jpg", image_rgb);
+    	//cv::imwrite("bg_subtracted_image2.jpg", image_rgb2);
+    	lastValidPixelCount = validPixelCounter;
+    	//fileCounter++;
+    }
+    if (fileCounter == 0)
+    {
+    	//cv::imwrite("bg_subtracted_image.jpg", image_rgb);
+    	cv::imwrite("bg_subtracted_image2.jpg", image_rgb2);
+    	//lastValidPixelCount = validPixelCounter;
+    	fileCounter++;
+    }
+
+
+    bag.write("point_cloud", ros::Time::now(), msg);
+    bag.write("rgb_image", ros::Time::now(), imageRgb);
 
 
     //pcl::io::savePCDFileASCII (oss.str(), *cloud);
@@ -208,6 +281,7 @@ int main(int argc, char** argv)
 	ros::NodeHandle nh, ng, n;
 	listener = new tf::TransformListener;
 	br = new tf::TransformBroadcaster;
+	bag.open("test.bag", rosbag::bagmode::Write);
 	//ros::Subscriber sub = nh.subscribe<PointCloud>("/kinect2/hd/points", 1, callback);
 
 	message_filters::Subscriber<PointCloud> registeredSub(nh, "/kinect2/hd/points", 1);

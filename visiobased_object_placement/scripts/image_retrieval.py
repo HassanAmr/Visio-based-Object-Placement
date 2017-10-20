@@ -376,7 +376,7 @@ def retrieve_nsmallest_dist(query_image, test_dirs, out_dir, n, dist_type, weigh
     fpWriter.writerow(["File", "Distance"])
     # Get Results for Query 
     keys_sorted = heapq.nsmallest(n, img_dict)
-    for y in range(0,n):
+    for y in range(0,min(n, len(keys_sorted))):
         print(str(y+1) + ":\t" + "Distance: " + str(keys_sorted[y]) + ", FileName: " + basename(img_dict[keys_sorted[y]]))
         #fp.write(str(y+1) + ":\t" + "Distance: " + str(keys_sorted[y]) + ", FileName: " + basename(img_dict[keys_sorted[y]]) +"\n")
         fpWriter.writerow([basename(img_dict[keys_sorted[y]]), str(keys_sorted[y])])

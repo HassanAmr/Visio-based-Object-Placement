@@ -105,7 +105,8 @@ def download(search_keyword, keywords, destination_dir, download_limit, log_dir)
         print (iteration)
         print ("Evaluating...")
         search_keywords = search_keyword[i]
-        search = search_keywords.replace(' ','%20')
+        _search = search_keywords.replace(' ','%20')
+        search = _search.replace('&','%26')
         search_keyword_file_name = search_keywords.replace(' ','_')
 
          #make a search keyword  directory

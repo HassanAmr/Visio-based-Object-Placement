@@ -29,7 +29,8 @@
 
 float ratio_Lowe = 0.7f; // As in Lowe's paper; can be tuned
 const cv::String dataset_type = ".jpg";
-cv::String query_location, test_location, cwd, output_location, log_location;//cwd is short for curring working directory
+int ransacReprojThreshold = 3;
+cv::String query_location, test_location, cwd, output_location, log_location, homographyMethod;//cwd is short for curring working directory
 
 
 //junk delete later
@@ -102,6 +103,7 @@ void drawBadMatches(
     const std::vector<cv::KeyPoint>& keypoints2,
     const cv::Mat& _img1,
     const cv::Mat& _img2,
+	const cv::Mat H,
     std::vector< std::vector<cv::DMatch> >& bad_matches,
     std::vector<cv::DMatch>& backward_matches,
     std::string currImgText
@@ -206,12 +208,56 @@ void drawBadMatches(
 
 	if (good_matches.size() > 0)
 	{
-		cv::Mat H = findHomography( obj, scene, cv::RANSAC, 3 );
 
 
 		if (countNonZero(H) > 0 )
 		{
 			cv::perspectiveTransform( obj_corners, scene_corners, H);
+			cv::Point2f offset = cv::Point2f( (float)img1.cols, 0);
+			for(int i = 0; i < scene_corners.size();i++)
+			{
+				line( img_rotation,
+						scene_corners[i] + offset, scene_corners[(i+1)%scene_corners.size()] + offset,
+						cv::Scalar( 0, 0, 255), 2, cv::LINE_AA );
+
+			}
+
+			int ptIndex = 0;
+			//cv::RNG rng(12345);
+			int color = 0;
+			for (int i = 0; i < 4;i++)
+			{
+				ptIndex = (((float)i/(float)4)*obj_corners.size());
+				cv::Point p1 = obj_corners[ptIndex];
+				cv::Point p2 = scene_corners[ptIndex] + offset;
+				cv::LineIterator it(img_rotation, p1, p2, 8);            // get a line iterator
+				//color = rng.uniform(0,255);
+				if ((i % 2) == 0){
+					//color = 255;
+					line( img_rotation, p1, p2, cv::Scalar( 0, 0, 255), 1, cv::LINE_AA );
+				}
+				else{
+					//color = 0;
+					line( img_rotation, p1, p2, cv::Scalar( 0, 0, 0), 1, cv::LINE_AA );
+
+				}
+				//for(int j = 0; j < it.count; j++,it++)
+				//    if ( j%5!=0 ) {(*it)[2] = color;}         // every 5'th pixel gets dropped, red or black stipple line
+			}
+		}
+		cv::Mat H_old;
+		if (homographyMethod == "RANSAC" || homographyMethod == "HYBRID")
+		{
+			H_old = findHomography( obj, scene, cv::RANSAC, ransacReprojThreshold );
+		}
+		else
+		{
+			H_old = findHomography( obj, scene, CV_LMEDS);
+		}
+
+		if (countNonZero(H_old) > 0 )
+		{
+			cv::perspectiveTransform( obj_corners, scene_corners, H_old);
 			cv::Point2f offset = cv::Point2f( (float)img1.cols, 0);
 			for(int i = 0; i < scene_corners.size();i++)
 			{
@@ -244,6 +290,8 @@ void drawBadMatches(
 				//    if ( j%5!=0 ) {(*it)[2] = color;}         // every 5'th pixel gets dropped, red or black stipple line
 			}
 		}
+
+
 	}
 	imwrite(outFile + "_rotation" + dataset_type, img_rotation);
 }
@@ -442,7 +490,24 @@ cv::Mat findGoodMatches_debug(
 				obj_corners[i] = hull[i];
 			}
 
-			H = findHomography( obj, scene, cv::RANSAC, 3 );
+			if (homographyMethod == "RANSAC")
+			{
+				H = findHomography( obj, scene, cv::RANSAC, ransacReprojThreshold );
+				std::cout<<"RANSAC-based robust method"<< std::endl;
+
+			}
+			else if (homographyMethod == "HYBRID")
+			{
+				H = findHomography( obj, scene, cv::RANSAC, ransacReprojThreshold );
+				homographyMethod ="";//This will make next iterations use Least-square method
+				std::cout<<"HYBRID robust method"<< std::endl;
+
+			}
+			else
+			{
+				H = findHomography( obj, scene, CV_LMEDS);
+				std::cout<<"Least-Median robust method"<< std::endl;
+			}
 
 			if (countNonZero(H) < 1)
 			{
@@ -572,8 +637,8 @@ cv::Mat findGoodMatches(
 	cv::Mat H;
 	//because we need keypoints2 unaffected to draw them at the end.
 	std::vector<cv::KeyPoint>  newKeypoints2;
-		for (int i=0; i<keypoints2.size(); i++)
-			newKeypoints2.push_back(keypoints2[i]);
+	for (int i=0; i<keypoints2.size(); i++)
+		newKeypoints2.push_back(keypoints2[i]);
     while (1)
 	{
     //-- Localize the object
@@ -604,7 +669,20 @@ cv::Mat findGoodMatches(
 				obj_corners[i] = hull[i];
 			}
 
-			H = findHomography( obj, scene, cv::RANSAC, 3 );
+			if (homographyMethod == "RANSAC")
+			{
+				H = findHomography( obj, scene, cv::RANSAC, ransacReprojThreshold );
+			}
+			else if (homographyMethod == "HYBRID")
+			{
+				H = findHomography( obj, scene, cv::RANSAC, ransacReprojThreshold );
+				homographyMethod ="";//This will make next iterations use Least-square method
+			}
+			else
+			{
+				H = findHomography( obj, scene, CV_LMEDS);
+			}
+
 			if (countNonZero(H) < 1)
 			{
 				break;
@@ -708,6 +786,20 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
+	if (!(nh.getParam("/visiobased_placement/HOMOGRAPHY_METHOD", inputParam)))
+	{
+		printf("Failure with input parameter.\nProgram will exit with failure status.");
+		return EXIT_FAILURE;
+	}
+
+	homographyMethod = inputParam;
+
+	if (!(nh.getParam("/visiobased_placement/RANSAC_REPROJTHRESHOLD", ransacReprojThreshold)))
+	{
+		printf("Failure with input parameter.\nProgram will exit with failure status.");
+		return EXIT_FAILURE;
+	}
+
 	bool debug_matches = false;
 	if (!(nh.getParam("/visiobased_placement/DEBUG_MATCHING", debug_matches)))
 	{
@@ -721,7 +813,6 @@ int main(int argc, char **argv)
 		printf("Failure with input parameter.\nProgram will exit with failure status.");
 		return EXIT_FAILURE;
 	}
-
 
 
 	//std::cout << focal_lenth << std::endl;
@@ -856,8 +947,23 @@ int main(int argc, char **argv)
 		int64 t0 = cv::getTickCount();
 
 		//load descriptors2
-		//surf(img2.getMat(ACCESS_READ), Mat(), keypoints2, descriptors2);
-		sift(img2.getMat(cv::ACCESS_READ), cv::Mat(), keypoints2, descriptors2);
+		try
+		{
+			//surf(img2.getMat(ACCESS_READ), Mat(), keypoints2, descriptors2);
+			sift(img2.getMat(cv::ACCESS_READ), cv::Mat(), keypoints2, descriptors2);
+			if (keypoints2.size() == 0)
+			{
+				ROS_WARN("Something went wrong when detecting features for %s. Skipping over it.", filenames[i].c_str());
+				continue;
+			}
+		}
+		catch (const std::exception& e)
+		{
+			ROS_WARN("Something went wrong when detecting features for %s. Skipping over it.", filenames[i].c_str());
+			continue;
+
+		}
+
 
 		matcher.knnMatch(descriptors1, descriptors2, matches, 2);// Find two nearest matches
 		matcher.match(descriptors2, descriptors1, backward_matches);
@@ -945,7 +1051,7 @@ int main(int argc, char **argv)
 			}
 			else
 			{
-				drawBadMatches(keypoints1, keypoints2, queryColorImg.getMat(cv::ACCESS_READ), colorImg.getMat(cv::ACCESS_READ), matches, backward_matches, filenames[i].c_str());
+				drawBadMatches(keypoints1, keypoints2, queryColorImg.getMat(cv::ACCESS_READ), colorImg.getMat(cv::ACCESS_READ), currM, matches, backward_matches, filenames[i].c_str());
 			}
 		}
 		catch (const std::exception& e)

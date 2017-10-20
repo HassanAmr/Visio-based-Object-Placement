@@ -72,9 +72,15 @@ def report(annotations):
             len(annotations.web_entities)))
 
         for entity in annotations.web_entities:
-            print('Score      : {}'.format(entity.score))
-            print('Description: {}'.format(entity.description))
-            list_results.append(entity.description)
+            try:
+                print('Score      : {}'.format(entity.score))
+                print('Description: {}'.format(entity.description))
+                list_results.append(entity.description)
+
+            except Exception, e:
+                print(e)
+                pass
+            
 
         return list_results
 

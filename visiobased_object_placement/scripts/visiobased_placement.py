@@ -20,6 +20,7 @@ import detect_image
 import ros_image_listener
 import tensorflow as tf
 from sensor_msgs import msg
+import message_filters
 from cv_bridge import CvBridge, CvBridgeError # ROS Image message -> OpenCV2 image converter
 import cv2 # OpenCV2 for saving an image
 from PIL import Image 
@@ -37,7 +38,7 @@ args = parser.parse_args()
 
 bridge = CvBridge()
 
-def image_callback(msg):
+def image_callback(msg1, msg2):
 
     CACHED_QUERY_FILE_NAME = rospy.get_param("/visiobased_placement/CACHED_QUERY_FILE_NAME")
     DIST_TYPE = rospy.get_param("/visiobased_placement/DIST_TYPE")
@@ -121,15 +122,19 @@ def image_callback(msg):
 
     try:
         # Convert your ROS Image message to OpenCV2
-        bg_subtracted_image = bridge.imgmsg_to_cv2(msg, "bgr8")
-        sub_once.unregister()
+        bg_subtracted_image = bridge.imgmsg_to_cv2(msg1, "bgr8")
+        cropped_image = bridge.imgmsg_to_cv2(msg2, "bgr8")
+        bgs_image_sub.unregister()
+        cropped_image_sub.unregister()
     except CvBridgeError, e:
         print(e)
 
-    cv_query_image = image_crop.crop(bg_subtracted_image)
+    #It is very important to send cropped_image as the first argument because it is always bigger and hence will keep the program intact
+    [cv_cropped_image, cv_bg_subtracted_image] = image_crop.crop(cropped_image, bg_subtracted_image)
+    #cv_query_image = image_crop.crop(bg_subtracted_image)
     #cv2.imwrite("query_image.jpg", cv_query_image)
-    QUERY_IMG = np.asarray( cv2.cvtColor(cv_query_image[:,:], cv2.COLOR_BGR2RGB) )
-
+    CROPPED_IMG = np.asarray( cv2.cvtColor(cv_cropped_image[:,:], cv2.COLOR_BGR2RGB) )
+    QUERY_IMG = np.asarray( cv2.cvtColor(cv_bg_subtracted_image[:,:], cv2.COLOR_BGR2RGB) )
 
     #Cloud API step
 
@@ -147,7 +152,7 @@ def image_callback(msg):
         print("CLOUD API!")
         t0_step = time.time()
 
-        image_from_numpy = Image.fromarray(QUERY_IMG)
+        image_from_numpy = Image.fromarray(CROPPED_IMG)
         imageBuffer = io.BytesIO()
         image_from_numpy.save(imageBuffer, format='PNG')
         imageBuffer.seek(0)
@@ -214,7 +219,7 @@ def image_callback(msg):
         pass
     
     t0_step = time.time()
-    image_retrieval.retrieve_nsmallest_dist(QUERY_IMG, dirs_list, RETRIEVED_PATH, N, DIST_TYPE, WEIGHTS_PATH, LOG_PATH)
+    image_retrieval.retrieve_nsmallest_dist(CROPPED_IMG, dirs_list, RETRIEVED_PATH, N, DIST_TYPE, WEIGHTS_PATH, LOG_PATH)
     t1_step = time.time()
     step_time = t1_step-t0_step
     print("\nRetrieve nsmallest distance: " + str(step_time))
@@ -244,7 +249,8 @@ def image_callback(msg):
     #Image rotation step
     #The following indicates that the current working directory is availabe for further processing. Currently, only this step relies on it
 
-    cv2.imwrite(curr_dir_session + "/query_image.jpg", cv_query_image)
+    cv2.imwrite(curr_dir_session + "/query_image.jpg", cv_cropped_image)
+    cv2.imwrite(curr_dir_session + "/bgs_image.jpg", cv_bg_subtracted_image)
 
 
     print("\nImage rotation step...")
@@ -310,8 +316,11 @@ if __name__ == '__main__':
 
 
     # Define your image topic
-    image_topic = "/bg_subtracted_image"
-    # Set up your subscriber and define its callback
-    sub_once = rospy.Subscriber(image_topic, msg.Image, image_callback)
-    # Spin until ctrl + c
+    bgs_image_topic = "/bg_subtracted_image"
+    cropped_image_topic = "/cropped_image"
+
+    bgs_image_sub = message_filters.Subscriber(bgs_image_topic, msg.Image)
+    cropped_image_sub = message_filters.Subscriber(cropped_image_topic, msg.Image)
+    ts = message_filters.TimeSynchronizer([bgs_image_sub, cropped_image_sub], 10)
+    ts.registerCallback(image_callback)
     rospy.spin()

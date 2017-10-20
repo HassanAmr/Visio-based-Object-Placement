@@ -30,7 +30,7 @@
 float ratio_Lowe = 0.7f; // As in Lowe's paper; can be tuned
 const cv::String dataset_type = ".jpg";
 int ransacReprojThreshold = 3;
-cv::String query_location, test_location, cwd, output_location, log_location, homographyMethod;//cwd is short for curring working directory
+cv::String query_location, bgs_location, test_location, cwd, output_location, log_location, homographyMethod;//cwd is short for curring working directory
 
 
 //junk delete later
@@ -752,6 +752,15 @@ int main(int argc, char **argv)
 	query_location = inputParam;
 	inputParam = "";
 
+	if (!(nh.getParam("/visiobased_placement/CACHED_BGS_FILE_NAME", inputParam)))
+	{
+		printf("Failure with input parameter.\nProgram will exit with failure status.");
+		return EXIT_FAILURE;
+	}
+
+	bgs_location = inputParam;
+	inputParam = "";
+
 	if (!(nh.getParam("/visiobased_placement/UPRIGHT_PATH", inputParam)))
 	{
 		printf("Failure with input parameter.\nProgram will exit with failure status.");
@@ -821,18 +830,19 @@ int main(int argc, char **argv)
 	//std::cout << output_location << std::endl;
 
 	query_location = cwd + query_location;
+	bgs_location = cwd+ bgs_location;
 	test_location = cwd + test_location;
 	output_location = cwd + output_location;
 	log_location = cwd + log_location;
 
 
 	cv::UMat queryImg;
-	queryImg = imread(query_location, CV_LOAD_IMAGE_GRAYSCALE).getUMat( cv::ACCESS_READ );
+	queryImg = imread(bgs_location, CV_LOAD_IMAGE_GRAYSCALE).getUMat( cv::ACCESS_READ );
 	if(queryImg.empty())
 	{
 		std::cout << "Couldn't load " << query_location << std::endl;
 		//cmd.printMessage();
-		printf("Something went wrong loading query image.\nProgram will exit with failure status.");
+		printf("Something went wrong loading the background subtractged image.\nProgram will exit with failure status.");
 		return EXIT_FAILURE;
 	}
 
@@ -932,7 +942,7 @@ int main(int argc, char **argv)
 		}
 
 		//testImg = imread(filenames[i], CV_LOAD_IMAGE_GRAYSCALE).getUMat( cv::ACCESS_READ );
-		if(queryImg.empty())
+		if(testImg.empty())
 		{
 			std::cout << "Couldn't load " << test_location << std::endl;
 			//cmd.printMessage();

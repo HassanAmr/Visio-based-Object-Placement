@@ -56,6 +56,8 @@ def image_callback(msg1, msg2):
     force_download = rospy.get_param("/visiobased_placement/force_download")
     user_search_keyword_path = rospy.get_param("/visiobased_placement/user_search_keyword")
     folder_name = rospy.get_param("/visiobased_placement/folder_name") 
+    use_api_flag = rospy.get_param("/visiobased_placement/use_api") 
+    search_keyword_directory = rospy.get_param("/visiobased_placement/search_keyword") 
     #search_keyword = rospy.get_param("/visiobased_placement/search_keyword") #TODO: This should be removed once API is online
     
     #t0_cache = time.time()
@@ -65,7 +67,13 @@ def image_callback(msg1, msg2):
     if user_search_keyword_path is not "":
         run_cloud_api_step = False
     else:
-        run_cloud_api_step = True
+        if use_api_flag is False:
+            run_cloud_api_step = False
+            user_search_keyword_path = search_keyword_directory + '/' + folder_name +"/keywords.txt"
+            print("it is false!!!!!!!!!!!!!!!!!!!!!!")
+        else:
+            run_cloud_api_step = True
+            print("it is true!!!!!!!!!!!!!!!!!!!!!!")
 
     
     try:

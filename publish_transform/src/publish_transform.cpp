@@ -162,10 +162,12 @@ int main(int argc, char **argv)
 
 	decomposeHomographyMat(H, CamMatrix, oRvecs, oTvecs, oNvecs);
 
-	std::cout <<"Rotation matrices acquired:" << std::endl;
+
 	double diff = 1;
-	int selectedR = -1;//this is to force an error if no one was chosen
-	for (int  j = 0; j < oRvecs.size(); ++j)
+	int selectedR1 = 0, selectedR2 = 1;
+	if (oRvecs[selectedR1].at<double>(2,2) == oRvecs[selectedR2].at<double>(2,2))
+		selectedR2++;
+	/*for (int  j = 0; j < oRvecs.size(); ++j)
 	{
 		std::cout <<oRvecs[j]<< std::endl;
 		//std::cout <<oRvecs[j].at<double>(2,2)<< std::endl;
@@ -175,7 +177,11 @@ int main(int argc, char **argv)
 			diff = newDiff;
 			selectedR = j;
 		}
-	}
+	}*/
+
+	std::cout <<"Rotation matrices acquired:" << std::endl;
+	std::cout <<oRvecs[selectedR1]<< std::endl;
+	std::cout <<oRvecs[selectedR2]<< std::endl;
 
 
 	//---------------------------------------------------------------------------------------------------
@@ -188,8 +194,9 @@ int main(int argc, char **argv)
 
 	//controller->init(nh);
 	//Eigen::Vector3f currPos = controller->getCurrentPosition();
-	Eigen::Matrix3f orientation;
-	cv2eigen(oRvecs[selectedR], orientation);
+	Eigen::Matrix3f orientation1, orientation2;
+	cv2eigen(oRvecs[selectedR1], orientation1);
+	cv2eigen(oRvecs[selectedR2], orientation2);
 
 	//controller->goToPosition(currPos, orientation);
 
@@ -200,15 +207,22 @@ int main(int argc, char **argv)
 	ros::Rate r(10);
 	while(ros::ok()){
 
-		Eigen::Quaternionf q(orientation);
-		cv::String tfStr = "rvec_frame";
-		tf::StampedTransform transform;
-		tf::Quaternion t;
-		tf::quaternionEigenToTF(Eigen::Quaterniond(q), t);
-		//tf::()
-		transform.setRotation(t);
-		br->sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/kinect2_ir_optical_frame", tfStr));
+		Eigen::Quaternionf q1(orientation1);
+		Eigen::Quaternionf q2(orientation2);
 
+		cv::String tfStr1 = "r1_frame";
+		cv::String tfStr2 = "r2_frame";
+		tf::StampedTransform transform1;
+		tf::StampedTransform transform2;
+		tf::Quaternion t1;
+		tf::Quaternion t2;
+		tf::quaternionEigenToTF(Eigen::Quaterniond(q1), t1);
+		tf::quaternionEigenToTF(Eigen::Quaterniond(q2), t2);
+		//tf::()
+		transform1.setRotation(t1);
+		transform2.setRotation(t2);
+		br->sendTransform(tf::StampedTransform(transform1, ros::Time::now(), "/kinect2_ir_optical_frame", tfStr1));
+		br->sendTransform(tf::StampedTransform(transform2, ros::Time::now(), "/kinect2_ir_optical_frame", tfStr2));
 		r.sleep();
 	}
 

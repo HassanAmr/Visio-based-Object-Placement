@@ -887,9 +887,9 @@ int main(int argc, char **argv)
 	std::vector<cv::KeyPoint> bestKeypoints2;
 	int bestImageWidth = 0;
 	int bestImageHeight = 0;
-	double bestMinDist = 0.0;
 	double currFitnessScore = 0.0;
 	double maxFitnessScore = 0.0;
+	double distScore = 100.0;
 
 
 	cv::Mat H;
@@ -1074,8 +1074,9 @@ int main(int argc, char **argv)
 		time_lost += (t1_lost-t0_lost)/cv::getTickFrequency();
 	    //######################################################################################################################################
 
-		if (currFitnessScore > maxFitnessScore)
+		if (minDist < distScore && currFitnessScore > 0 )
 		{
+			distScore = minDist;
 			maxFitnessScore = currFitnessScore;
 			bestFileName = filenames[i];
 			bestKeypoints2.clear();
@@ -1086,7 +1087,7 @@ int main(int argc, char **argv)
 			bestMatches = selected_matches;
 			bestImageWidth = img2.cols;
 			bestImageHeight = img2.rows;
-			bestMinDist = minDist;
+			distScore = minDist;
 		}
 
 		matches.clear();
@@ -1160,7 +1161,7 @@ int main(int argc, char **argv)
 
 	outTF << "fileName" << bestFileName.c_str();
 	outTF << "fitnessScore" <<maxFitnessScore;
-	outTF << "minDist" <<bestMinDist;
+	outTF << "minDist" <<distScore;
 	outTF << "homographyMatrix" << H;
 	outTF << "rotationMatrix" << oRvecs[selectedR];
 	outTF << "imageWidth" << bestImageWidth;
@@ -1172,11 +1173,11 @@ int main(int argc, char **argv)
 	//---------------------------------------------------------------------------------------------------
 	//TODO: close for now. Remove later when doing demo for pipeline
 	if (maxFitnessScore > 0)
-		{
-			ROS_INFO("Success!.");
-			return EXIT_SUCCESS;
-			//while (1){}
-		}
+	{
+		ROS_INFO("Success!.");
+		return EXIT_SUCCESS;
+		//while (1){}
+	}
 	//---------------------------------------------------------------------------------------------------
 	//TODO: Fix with Daniel
 	//MoveItController *m_armController;

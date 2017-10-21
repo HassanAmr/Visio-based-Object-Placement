@@ -884,9 +884,10 @@ int main(int argc, char **argv)
 	cv::String bestFileName;
 	cv::Mat bestM;
 	std::vector<cv::DMatch> bestMatches;
-	int bestKeypointsNum = 0;
-	int bestImageCenterX = 0;
-	int bestImageCenterY = 0;
+	std::vector<cv::KeyPoint> bestKeypoints2;
+	int bestImageWidth = 0;
+	int bestImageHeight = 0;
+	double bestMinDist = 0.0;
 	double currFitnessScore = 0.0;
 	double maxFitnessScore = 0.0;
 
@@ -1077,11 +1078,15 @@ int main(int argc, char **argv)
 		{
 			maxFitnessScore = currFitnessScore;
 			bestFileName = filenames[i];
+			bestKeypoints2.clear();
+			for (size_t j=0; j< filenames.size(); j++)
+				bestKeypoints2.push_back(keypoints2[j]);
+
 			H = currM;
-			bestKeypointsNum = keypoints2.size(); //This is the number of keypoints found on our best result image.
 			bestMatches = selected_matches;
-			bestImageCenterX = img2.cols/2;
-			bestImageCenterY = img2.rows/2;
+			bestImageWidth = img2.cols;
+			bestImageHeight = img2.rows;
+			bestMinDist = minDist;
 		}
 
 		matches.clear();
@@ -1103,8 +1108,8 @@ int main(int argc, char **argv)
 
 	CamMatrix.at< float >(0, 0) = focal_lenth;
 	CamMatrix.at< float >(1, 1) = focal_lenth;
-	CamMatrix.at< float >(0, 2) = bestImageCenterX;
-	CamMatrix.at< float >(1, 2) = bestImageCenterY;
+	CamMatrix.at< float >(0, 2) = bestImageWidth/2;
+	CamMatrix.at< float >(1, 2) = bestImageHeight/2;
 
 	decomposeHomographyMat(H, CamMatrix, oRvecs, oTvecs, oNvecs);
 
@@ -1138,16 +1143,41 @@ int main(int argc, char **argv)
 	std::cout <<"Orienting position..." << std::endl;
 	std::cout <<"Image:\t"<<bestFileName<< "\nScore:\t"<< maxFitnessScore << std::endl;
 	logOutput.close();
-	std::ofstream rotOutput;
-	cv::String rotOutName = log_location + "/rotation_matrix.csv";
-	logOutput.open (rotOutName.c_str(), std::ios::out | std::ios::app);
-    logOutput << bestFileName <<std::endl;
-    logOutput << oRvecs[selectedR].at<double>(0, 0)<<"\t"<< oRvecs[selectedR].at<double>(0, 1)<<"\t" << oRvecs[selectedR].at<double>(0, 2) <<std::endl;
-    logOutput << oRvecs[selectedR].at<double>(1, 0)<<"\t"<< oRvecs[selectedR].at<double>(1, 1)<<"\t" << oRvecs[selectedR].at<double>(1, 2) <<std::endl;
-    logOutput << oRvecs[selectedR].at<double>(2, 0)<<"\t"<< oRvecs[selectedR].at<double>(2, 1)<<"\t" << oRvecs[selectedR].at<double>(2, 2) <<std::endl;
-    logOutput.close();
-	//---------------------------------------------------------------------------------------------------
 
+	cv::String outName= log_location + "/transformationOutput.yml";
+
+	cv::FileStorage outTF(outName, cv::FileStorage::WRITE);
+
+	std::vector<cv::Point2f> obj;
+	std::vector<cv::Point2f> scene;
+
+	for( size_t i = 0; i < bestMatches.size(); i++ )
+	{
+		//-- Get the keypoints from the good matches
+		obj.push_back( keypoints1[ bestMatches[i].queryIdx ].pt );
+		scene.push_back( bestKeypoints2[ bestMatches[i].trainIdx ].pt );
+	}
+
+	outTF << "fileName" << bestFileName.c_str();
+	outTF << "fitnessScore" <<maxFitnessScore;
+	outTF << "minDist" <<bestMinDist;
+	outTF << "homographyMatrix" << H;
+	outTF << "rotationMatrix" << oRvecs[selectedR];
+	outTF << "imageWidth" << bestImageWidth;
+	outTF << "imageHeight" << bestImageHeight;
+	outTF << "queryPoints" << obj;
+	outTF << "referencePoints" << scene;
+	outTF << "matches" << bestMatches;
+	outTF.release();
+	//---------------------------------------------------------------------------------------------------
+	//TODO: close for now. Remove later when doing demo for pipeline
+	if (maxFitnessScore > 0)
+		{
+			ROS_INFO("Success!.");
+			return EXIT_SUCCESS;
+			//while (1){}
+		}
+	//---------------------------------------------------------------------------------------------------
 	//TODO: Fix with Daniel
 	//MoveItController *m_armController;
 	//m_armController = new MoveItController("iiwa", SCHUNK_HAND);
@@ -1177,50 +1207,8 @@ int main(int argc, char **argv)
 		transform.setRotation(t);
 		br->sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/kinect2_ir_optical_frame", tfStr));
 
-		/*
-		for (int  j = 0; j < oRvecs.size(); ++j)
-		{
-			//std::cout<<j + 1<<std::endl;
-			//std::cout<<oRvecs[j]<<std::endl<<std::endl;
-			//the following lines are not guaranteed to be correct yet. Maybe an actual conversion is needed here.
-			Eigen::Matrix3f m;
-			cv2eigen(oRvecs[j], m);
-			Eigen::Quaternionf q(m);
-			cv::String tfStr = "rvec_frame" +std::to_string(j+1);
-			tf::StampedTransform transform;
-			tf::Quaternion t;
-			tf::quaternionEigenToTF(Eigen::Quaterniond(q), t);
-			//tf::()
-			transform.setRotation(t);
-			br[j].sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/kinect2_ir_optical_frame", tfStr));
-		}
-		*/
 		r.sleep();
 	}
-
-	//writing to standard output part
-	/*std::cout << bestFileName << " -> "<< currFitnessScore << std::endl
-			<< "H = " << std::endl
-			<<  H << std::endl << std::endl
-			<< "F = " << std::endl
-			<<  F << std::endl << std::endl
-			<< "E = " << std::endl
-			<<  E << std::endl << std::endl
-			<< "R = " << std::endl
-			<<  R << std::endl << std::endl
-			<< "T = " << std::endl
-			<<  T << std::endl << std::endl;
-	 */
-	//write image to disk
-	//cv::Mat img_matches = drawGoodMatches(keypoints1, keypoints2, queryColorImg.getMat(cv::ACCESS_READ), bestImg.getMat(cv::ACCESS_READ), bestMatches);
-	//while(img_matches.empty()){};
-
-	//currFitnessScore *= 100;
-	//cv::String fitnessValue = "Fitness: " + std::to_string(currFitnessScore) + '%';
-	//putText(img_matches, fitnessValue, cv::Point(5, img1.rows - 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
-	//cv::String output_file = cwd + "output/" + bestFileName + dataset_type;
-	//imwrite(output_file, img_matches);
-
 
 	return EXIT_SUCCESS;
 }

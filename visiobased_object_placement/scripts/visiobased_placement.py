@@ -70,12 +70,9 @@ def image_callback(msg1, msg2):
         if use_api_flag is False:
             run_cloud_api_step = False
             user_search_keyword_path = search_keyword_directory + '/' + folder_name +"/keywords.txt"
-            print("it is false!!!!!!!!!!!!!!!!!!!!!!")
         else:
             run_cloud_api_step = True
-            print("it is true!!!!!!!!!!!!!!!!!!!!!!")
 
-    
     try:
         os.makedirs(SEARCH_DESINATION_DIR)
     except OSError, e:

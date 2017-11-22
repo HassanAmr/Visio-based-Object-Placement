@@ -26,6 +26,13 @@
 #include "opencv2/calib3d/calib3d.hpp"
 #include <MoveItController.h>
 
+
+#include <actionlib/client/simple_action_client.h>
+#include <eigen_conversions/eigen_msg.h>
+#include <prm_planner_msgs/GoalAction.h>
+#include <Eigen/Geometry>
+
+
 cv::String query_location, bgs_location, test_location, cwd, output_location, log_location, homographyMethod;//cwd is short for curring working directory
 
 
@@ -44,7 +51,77 @@ cv::String RemoveFileExtension (const std::string& str)
 
 int main(int argc, char **argv)
 {
+	ros::init(argc, argv, "prm_planner_action_server_interface");
+	ros::NodeHandle n;
 
+	//create action client and wait until server is available
+	actionlib::SimpleActionClient<prm_planner_msgs::GoalAction> actionClient("prm_planner/goals", true);
+	actionClient.waitForServer();
+
+	//define goals: We use the end effector pose relative to the planning frame as a goal
+
+	ros::AsyncSpinner spinner(2);
+	spinner.start();
+
+	tf::StampedTransform transform, transform1, transform2;
+	tf::TransformListener listener;
+
+	while (ros::ok())
+	{
+		sleep(1);
+
+		try{
+			listener.lookupTransform("/iiwa/iiwa_0_link", "/object_at_hand_1", ros::Time(0), transform1);
+			listener.lookupTransform("/iiwa/iiwa_0_link", "/object_at_hand_2", ros::Time(0), transform2);
+
+		}
+		catch (tf::TransformException &ex) {
+			ROS_ERROR("%s",ex.what());
+			ros::Duration(1.0).sleep();
+		}
+
+		Eigen::Affine3d goal1;
+		Eigen::Affine3d goal2;
+		const tf::Transform tf1(transform1.getBasis(),transform1.getOrigin());
+		const tf::Transform tf2(transform2.getBasis(),transform2.getOrigin());
+
+		tf::transformTFToEigen (tf1, goal1);
+		tf::transformTFToEigen (tf2, goal2);
+
+		prm_planner_msgs::GoalGoal goalMsg1;
+		tf::poseEigenToMsg(goal1, goalMsg1.goal);
+		goalMsg1.action = prm_planner_msgs::GoalGoal::ACTION_MOVE;
+
+		prm_planner_msgs::GoalGoal goalMsg2;
+		tf::poseEigenToMsg(goal2, goalMsg2.goal);
+		goalMsg2.action = prm_planner_msgs::GoalGoal::ACTION_MOVE;
+
+
+
+		actionClient.sendGoal(goalMsg1);
+		actionClient.waitForResult();
+		if (!actionClient.getResult()->success)
+		{
+			ROS_ERROR("Cannot find a trajectory to goal 1");
+		}
+
+		sleep(5);
+
+		if (!ros::ok())
+			break;
+
+		actionClient.sendGoal(goalMsg2);
+		actionClient.waitForResult();
+		if (!actionClient.getResult()->success)
+		{
+			ROS_ERROR("Cannot find a trajectory to goal 2");
+		}
+
+		sleep(1);
+	}
+
+	return EXIT_SUCCESS;
+/*
 	ros::init(argc, argv, "publish_transform");
 
 	std::string inputParam;
@@ -115,21 +192,6 @@ int main(int argc, char **argv)
 	output_location = cwd + output_location;
 	log_location = cwd + log_location;
 
-	/*
-	cv::UMat queryImg;
-	queryImg = imread(bgs_location, CV_LOAD_IMAGE_GRAYSCALE).getUMat( cv::ACCESS_READ );
-	if(queryImg.empty())
-	{
-		std::cout << "Couldn't load " << query_location << std::endl;
-		//cmd.printMessage();
-		printf("Something went wrong loading the background subtractged image.\nProgram will exit with failure status.");
-		return EXIT_FAILURE;
-	}
-	*/
-
-	//cv::UMat img1;
-	//queryImg.copyTo(img1);
-
 	//inputs
 	std::vector<cv::KeyPoint> keypoints1, keypoints2;
 	std::vector<cv::DMatch>  matches;
@@ -167,33 +229,12 @@ int main(int argc, char **argv)
 	int selectedR1 = 0, selectedR2 = 1;
 	if (oRvecs[selectedR1].at<double>(2,2) == oRvecs[selectedR2].at<double>(2,2))
 		selectedR2++;
-	/*for (int  j = 0; j < oRvecs.size(); ++j)
-	{
-		std::cout <<oRvecs[j]<< std::endl;
-		//std::cout <<oRvecs[j].at<double>(2,2)<< std::endl;
-		double newDiff = 1 - oRvecs[j].at<double>(2,2);
-		if (newDiff < diff)
-		{
-			diff = newDiff;
-			selectedR = j;
-		}
-	}*/
 
 	std::cout <<"Rotation matrices acquired:" << std::endl;
 	std::cout <<oRvecs[selectedR1]<< std::endl;
 	std::cout <<oRvecs[selectedR2]<< std::endl;
 
 
-	//---------------------------------------------------------------------------------------------------
-
-	//TODO: Fix with Daniel
-	//MoveItController *m_armController;
-	//m_armController = new MoveItController("iiwa", SCHUNK_HAND);
-	//m_armController->init(nh);
-	//m_armController->closeGripper();
-
-	//controller->init(nh);
-	//Eigen::Vector3f currPos = controller->getCurrentPosition();
 	Eigen::Matrix3f orientation1, orientation2;
 	cv2eigen(oRvecs[selectedR1], orientation1);
 	cv2eigen(oRvecs[selectedR2], orientation2);
@@ -227,4 +268,5 @@ int main(int argc, char **argv)
 	}
 
 	return EXIT_SUCCESS;
+	*/
 }

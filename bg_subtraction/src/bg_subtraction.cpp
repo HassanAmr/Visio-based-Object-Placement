@@ -29,7 +29,9 @@ typedef message_filters::sync_policies::ApproximateTime<PointCloud, sensor_msgs:
 tf::TransformListener * listener;
 tf::TransformBroadcaster * br;
 ros::Publisher pub;
-image_transport::Publisher imagePub;
+image_transport::Publisher imagePub1;
+image_transport::Publisher imagePub2;
+
 rosbag::Bag bag;
 
 int fileCounter = 0;
@@ -216,9 +218,14 @@ void callback(const PointCloud::ConstPtr& msg, const sensor_msgs::Image::ConstPt
     imageMsg.header.frame_id = msg->header.frame_id;
     imageMsg.header.stamp = ros::Time::now();
     imageMsg.encoding = "bgr8"; // Or whatever
-    imageMsg.image    = image_rgb2; // Your cv::Mat
+    imageMsg.image    = image_rgb; // Your cv::Mat
     //sensor_msgs::ImagePtr imageMsg = cv_bridge::CvImage(, , image).toImageMsg();
-    imagePub.publish(imageMsg.toImageMsg());
+    imagePub1.publish(imageMsg.toImageMsg());
+
+    imageMsg.image    = image_rgb2; // Your cv::Mat
+
+    imagePub2.publish(imageMsg.toImageMsg());
+
 
     //cloud->header.frame_id = msg->header.frame_id;
     //cloud->header.stamp = msg->header.stamp;
@@ -252,8 +259,8 @@ void callback(const PointCloud::ConstPtr& msg, const sensor_msgs::Image::ConstPt
     }
 
 
-    bag.write("point_cloud", ros::Time::now(), msg);
-    bag.write("rgb_image", ros::Time::now(), imageRgb);
+    //bag.write("point_cloud", ros::Time::now(), msg);
+    //bag.write("rgb_image", ros::Time::now(), imageRgb);
 
 
     //pcl::io::savePCDFileASCII (oss.str(), *cloud);
@@ -281,7 +288,7 @@ int main(int argc, char** argv)
 	ros::NodeHandle nh, ng, n;
 	listener = new tf::TransformListener;
 	br = new tf::TransformBroadcaster;
-	bag.open("test.bag", rosbag::bagmode::Write);
+	//bag.open("test.bag", rosbag::bagmode::Write);
 	//ros::Subscriber sub = nh.subscribe<PointCloud>("/kinect2/hd/points", 1, callback);
 
 	message_filters::Subscriber<PointCloud> registeredSub(nh, "/kinect2/hd/points", 1);
@@ -291,6 +298,7 @@ int main(int argc, char** argv)
 
 	pub = n.advertise<PointCloud>("/bg_subtracted", 1);
 	image_transport::ImageTransport it(ng);
-	imagePub = it.advertise("/bg_subtracted_image", 1);
+	imagePub1 = it.advertise("/bg_subtracted_image", 1);
+	imagePub2 = it.advertise("/cropped_image", 1);
 	ros::spin();
 }

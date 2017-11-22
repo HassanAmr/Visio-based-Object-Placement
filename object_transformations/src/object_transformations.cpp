@@ -889,7 +889,7 @@ int main(int argc, char **argv)
 	int bestImageHeight = 0;
 	double currFitnessScore = 0.0;
 	double maxFitnessScore = 0.0;
-	double distScore = 100.0;
+	double distScore = 120.0;
 
 
 	cv::Mat H;
@@ -1115,6 +1115,7 @@ int main(int argc, char **argv)
 	decomposeHomographyMat(H, CamMatrix, oRvecs, oTvecs, oNvecs);
 
 	std::cout <<"Rotation matrices acquired:" << std::endl;
+	/*
 	double diff = 1;
 	int selectedR = -1;//this is to force an error if no one was chosen
 	for (int  j = 0; j < oRvecs.size(); ++j)
@@ -1127,7 +1128,10 @@ int main(int argc, char **argv)
 				diff = newDiff;
 				selectedR = j;
 			}
-	}
+	}*/
+	int selectedR1 = 0, selectedR2 = 1;
+	if (oRvecs[selectedR1].at<double>(2,2) == oRvecs[selectedR2].at<double>(2,2))
+		selectedR2++;
 	//---------------------------------------------------------------------------------------------------
 	//Stop the clock!
 	int64 t1_total = cv::getTickCount();
@@ -1137,8 +1141,10 @@ int main(int argc, char **argv)
 
     logOutput << "Total" <<"\t"<< "-" <<"\t"<< "-" <<"\t"<< "-" <<"\t"<< "-" <<"\t"<< "-" <<"\t"<< secs <<std::endl;
 
-	std::cout <<"Rotation matrix chosen:" << std::endl;
-	std::cout <<oRvecs[selectedR]<< std::endl;
+	std::cout <<"Rotation matrices:" << std::endl;
+	std::cout <<oRvecs[selectedR1]<< std::endl;
+	std::cout <<oRvecs[selectedR2]<< std::endl;
+
 
 
 	std::cout <<"Orienting position..." << std::endl;
@@ -1163,7 +1169,8 @@ int main(int argc, char **argv)
 	outTF << "fitnessScore" <<maxFitnessScore;
 	outTF << "minDist" <<distScore;
 	outTF << "homographyMatrix" << H;
-	outTF << "rotationMatrix" << oRvecs[selectedR];
+	outTF << "rotationMatrix1" << oRvecs[selectedR1];
+	outTF << "rotationMatrix2" << oRvecs[selectedR2];
 	outTF << "imageWidth" << bestImageWidth;
 	outTF << "imageHeight" << bestImageHeight;
 	outTF << "queryPoints" << obj;
@@ -1171,13 +1178,6 @@ int main(int argc, char **argv)
 	outTF << "matches" << bestMatches;
 	outTF.release();
 	//---------------------------------------------------------------------------------------------------
-	//TODO: close for now. Remove later when doing demo for pipeline
-	if (maxFitnessScore > 0)
-	{
-		ROS_INFO("Success!.");
-		return EXIT_SUCCESS;
-		//while (1){}
-	}
 	//---------------------------------------------------------------------------------------------------
 	//TODO: Fix with Daniel
 	//MoveItController *m_armController;
@@ -1187,26 +1187,62 @@ int main(int argc, char **argv)
 
 	//controller->init(nh);
 	//Eigen::Vector3f currPos = controller->getCurrentPosition();
-	Eigen::Matrix3f orientation;
-	cv2eigen(oRvecs[selectedR], orientation);
+	Eigen::Matrix3f orientation1, orientation2;
+	cv2eigen(oRvecs[selectedR1], orientation1);
+	cv2eigen(oRvecs[selectedR2], orientation2);
 
 	//controller->goToPosition(currPos, orientation);
 
 
 	std::cout <<"Publishing transform..." << std::endl;
-	tf::TransformBroadcaster * br;
-	br = new tf::TransformBroadcaster;
-	ros::Rate r(10);
-	while(ros::ok()){
 
-		Eigen::Quaternionf q(orientation);
-		cv::String tfStr = "rvec_frame";
-		tf::StampedTransform transform;
+
+	tf::StampedTransform transform, transform1, transform2;
+	tf::TransformListener listener;
+	tf::TransformBroadcaster br;
+
+	ros::Rate r(10);
+
+
+
+	while(ros::ok()){
+		try{
+			listener.lookupTransform("/kinect2_ir_optical_frame", "/iiwa/sdh2_grasp_link", ros::Time(0), transform);
+			listener.lookupTransform("/kinect2_ir_optical_frame", "/iiwa/sdh2_grasp_link", ros::Time(0), transform1);
+			listener.lookupTransform("/kinect2_ir_optical_frame", "/iiwa/sdh2_grasp_link", ros::Time(0), transform2);
+
+			br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/kinect2_ir_optical_frame", "palm_pose"));
+
+		}
+		catch (tf::TransformException &ex) {
+			ROS_ERROR("%s",ex.what());
+			ros::Duration(1.0).sleep();
+		}
+
+		/*
+		Eigen::Quaternionf q(orientation2);
+		cv::String tfStr = "object_at_hand";
+		//tf::StampedTransform transform;
 		tf::Quaternion t;
 		tf::quaternionEigenToTF(Eigen::Quaterniond(q), t);
 		//tf::()
-		transform.setRotation(t);
-		br->sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/kinect2_ir_optical_frame", tfStr));
+		//transform.setRotation(t);
+		transform.setRotation(t * transform.getRotation());
+		br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "/kinect2_ir_optical_frame", tfStr));
+		*/
+
+		Eigen::Quaternionf q1(orientation1);
+		Eigen::Quaternionf q2(orientation2);
+		tf::Quaternion t1, t2;
+		tf::quaternionEigenToTF(Eigen::Quaterniond(q1), t1);
+		tf::quaternionEigenToTF(Eigen::Quaterniond(q2), t2);
+		//tf::()
+		//transform.setRotation(t);
+		transform1.setRotation(t1 * transform1.getRotation());
+		transform2.setRotation(t2 * transform2.getRotation());
+
+		br.sendTransform(tf::StampedTransform(transform1, ros::Time::now(), "/kinect2_ir_optical_frame", "object_at_hand_1"));
+		br.sendTransform(tf::StampedTransform(transform2, ros::Time::now(), "/kinect2_ir_optical_frame", "object_at_hand_2"));
 
 		r.sleep();
 	}

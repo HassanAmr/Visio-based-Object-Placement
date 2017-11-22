@@ -3,9 +3,9 @@ names:
 robots:
     iiwa:
         arm_names:
-        - iiwa_arm
+        - iiwa
         arms:
-            iiwa_arm:
+            iiwa:
                 start_link: iiwa_0_link
                 end_link: sdh2_grasp_link
                 tool_frame: false

@@ -8,6 +8,7 @@ Panels:
         - /Status1
         - /RobotModel1
         - /Image1
+        - /TF1
         - /TF1/Frames1
         - /MarkerArray1
         - /MarkerArray1/Namespaces1
@@ -233,19 +234,174 @@ Visualization Manager:
       Unreliable: false
       Value: true
     - Class: rviz/TF
-      Enabled: false
+      Enabled: true
       Frame Timeout: 15
       Frames:
         All Enabled: false
+        iiwa/iiwa_0_link:
+          Value: false
+        iiwa/iiwa_0_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/iiwa_1_link:
+          Value: false
+        iiwa/iiwa_1_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/iiwa_2_link:
+          Value: false
+        iiwa/iiwa_2_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/iiwa_3_link:
+          Value: false
+        iiwa/iiwa_3_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/iiwa_4_link:
+          Value: false
+        iiwa/iiwa_4_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/iiwa_5_link:
+          Value: false
+        iiwa/iiwa_5_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/iiwa_6_link:
+          Value: false
+        iiwa/iiwa_6_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/iiwa_7_link:
+          Value: false
+        iiwa/iiwa_7_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/iiwa_adapter:
+          Value: false
+        iiwa/iiwa_adapter_trajectory_15145567424672997899:
+          Value: false
+        iiwa/iiwa_base_link:
+          Value: false
+        iiwa/iiwa_base_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/iiwa_flange_link:
+          Value: false
+        iiwa/iiwa_flange_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/sdh2_adapter_link:
+          Value: false
+        iiwa/sdh2_adapter_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/sdh2_finger_11_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/sdh2_finger_12_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/sdh2_finger_13_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/sdh2_finger_21_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/sdh2_finger_22_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/sdh2_finger_23_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/sdh2_grasp_link:
+          Value: false
+        iiwa/sdh2_grasp_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/sdh2_palm_link:
+          Value: false
+        iiwa/sdh2_palm_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/sdh2_push_link:
+          Value: false
+        iiwa/sdh2_push_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/sdh2_thumb_1_link:
+          Value: false
+        iiwa/sdh2_thumb_1_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/sdh2_thumb_2_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/sdh2_thumb_3_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa/sdh2_tip_link:
+          Value: false
+        iiwa/sdh2_tip_link_trajectory_15145567424672997899:
+          Value: false
+        iiwa_end_effector_link:
+          Value: false
+        kinect2_ir_optical_frame:
+          Value: false
+        kinect2_link:
+          Value: false
+        kinect2_rgb_optical_frame:
+          Value: false
+        object_at_hand:
+          Value: true
+        rvec_frame:
+          Value: true
       Marker Scale: 1
       Name: TF
       Show Arrows: true
       Show Axes: true
       Show Names: true
       Tree:
-        {}
+        kinect2_link:
+          iiwa/iiwa_base_link:
+            iiwa/iiwa_0_link:
+              iiwa/iiwa_0_link_trajectory_15145567424672997899:
+                iiwa/iiwa_1_link_trajectory_15145567424672997899:
+                  iiwa/iiwa_2_link_trajectory_15145567424672997899:
+                    iiwa/iiwa_3_link_trajectory_15145567424672997899:
+                      iiwa/iiwa_4_link_trajectory_15145567424672997899:
+                        iiwa/iiwa_5_link_trajectory_15145567424672997899:
+                          iiwa/iiwa_6_link_trajectory_15145567424672997899:
+                            iiwa/iiwa_7_link_trajectory_15145567424672997899:
+                              iiwa/iiwa_adapter_trajectory_15145567424672997899:
+                                iiwa/iiwa_flange_link_trajectory_15145567424672997899:
+                                  iiwa/sdh2_adapter_link_trajectory_15145567424672997899:
+                                    iiwa/sdh2_palm_link_trajectory_15145567424672997899:
+                                      iiwa/sdh2_finger_11_link_trajectory_15145567424672997899:
+                                        iiwa/sdh2_finger_12_link_trajectory_15145567424672997899:
+                                          iiwa/sdh2_finger_13_link_trajectory_15145567424672997899:
+                                            {}
+                                      iiwa/sdh2_finger_21_link_trajectory_15145567424672997899:
+                                        iiwa/sdh2_finger_22_link_trajectory_15145567424672997899:
+                                          iiwa/sdh2_finger_23_link_trajectory_15145567424672997899:
+                                            {}
+                                      iiwa/sdh2_grasp_link_trajectory_15145567424672997899:
+                                        {}
+                                      iiwa/sdh2_push_link_trajectory_15145567424672997899:
+                                        {}
+                                      iiwa/sdh2_thumb_1_link_trajectory_15145567424672997899:
+                                        iiwa/sdh2_thumb_2_link_trajectory_15145567424672997899:
+                                          iiwa/sdh2_thumb_3_link_trajectory_15145567424672997899:
+                                            {}
+                                      iiwa/sdh2_tip_link_trajectory_15145567424672997899:
+                                        {}
+              iiwa/iiwa_1_link:
+                iiwa/iiwa_2_link:
+                  iiwa/iiwa_3_link:
+                    iiwa/iiwa_4_link:
+                      iiwa/iiwa_5_link:
+                        iiwa/iiwa_6_link:
+                          iiwa/iiwa_7_link:
+                            iiwa/iiwa_adapter:
+                              iiwa/iiwa_flange_link:
+                                iiwa/sdh2_adapter_link:
+                                  iiwa/sdh2_palm_link:
+                                    iiwa/sdh2_grasp_link:
+                                      {}
+                                    iiwa/sdh2_push_link:
+                                      {}
+                                    iiwa/sdh2_thumb_1_link:
+                                      {}
+                                    iiwa/sdh2_tip_link:
+                                      {}
+          kinect2_rgb_optical_frame:
+            kinect2_ir_optical_frame:
+              iiwa_end_effector_link:
+                {}
+              object_at_hand:
+                {}
+              rvec_frame:
+                {}
       Update Interval: 0
-      Value: false
+      Value: true
     - Class: rviz/MarkerArray
       Enabled: false
       Marker Topic: /prm_planner/prm/iiwa_single_arm_iiwa

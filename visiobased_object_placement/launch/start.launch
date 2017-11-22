@@ -2,6 +2,8 @@
 	<!-- Start camera -->
 	<include file="$(find kinect2_bridge)/launch/kinect2_bridge.launch">
 		<arg name="publish_tf" default="true" />
+		<arg name="fps_limit" default="1" />
+
 	</include>
 
 	<group ns="iiwa">
